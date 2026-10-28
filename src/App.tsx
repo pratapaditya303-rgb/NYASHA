@@ -4,7 +4,6 @@ import { Header } from './components/Header';
 import { Footer } from './components/Footer';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { AILegalAssistant } from './components/AILegalAssistant';
-import { useSyncManager } from './hooks/useSyncManager';
 import { EmergencyLawyerModal } from './components/EmergencyLawyerModal';
 
 // Views
@@ -38,8 +37,6 @@ export default function App() {
     return savedTheme === 'light' ? 'light' : 'dark';
   });
 
-
-  useSyncManager();
 
   useEffect(() => {
     const root = document.documentElement;

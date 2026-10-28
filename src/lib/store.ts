@@ -44,6 +44,7 @@ import {
   DEFAULT_PLATFORM_SETTINGS,
   generateCryptoLicenseKey
 } from './modulesConfig';
+import { securityShield } from '../utils/securityShield';
 import { doc, onSnapshot, setDoc, getDocFromServer } from 'firebase/firestore';
 import { firestoreDb, auth } from './firebase';
 import firebaseConfig from '../../firebase-applet-config.json';

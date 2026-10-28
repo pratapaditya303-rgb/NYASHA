@@ -1,0 +1,132 @@
+{
+  "entities": {
+    "TenantOrganization": {
+      "title": "TenantOrganization",
+      "description": "Bar Association or Legal Chamber tenant entity with multi-tenant isolation",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 256 },
+        "district": { "type": "string", "maxLength": 128 },
+        "plan": { "type": "string", "enum": ["TRIAL", "STARTER", "PROFESSIONAL", "ENTERPRISE_BAR"] },
+        "status": { "type": "string", "enum": ["ACTIVE", "EXPIRED", "SUSPENDED"] },
+        "licenseKey": { "type": "string", "maxLength": 64 },
+        "validTill": { "type": "string", "maxLength": 32 },
+        "maxAdvocatesQuota": { "type": "number" }
+      },
+      "required": ["id", "name", "district", "plan", "status", "licenseKey"]
+    },
+    "Advocate": {
+      "title": "Advocate",
+      "description": "Advocate profile and member account belonging to a specific tenant bar",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "tenantId": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 128 },
+        "email": { "type": "string", "maxLength": 128 },
+        "mobile": { "type": "string", "maxLength": 20 },
+        "barNo": { "type": "string", "maxLength": 64 },
+        "role": { "type": "string", "enum": ["super_admin", "state_bar_admin", "bar_admin", "advocate", "junior_advocate"] },
+        "status": { "type": "string", "enum": ["APPROVED", "PENDING", "REJECTED", "SUSPENDED"] }
+      },
+      "required": ["id", "tenantId", "name", "email", "role", "status"]
+    },
+    "Client": {
+      "title": "Client",
+      "description": "Litigant case record and client contact managed by an advocate",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "tenantId": { "type": "string", "maxLength": 128 },
+        "advocateId": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 128 },
+        "caseNumber": { "type": "string", "maxLength": 64 },
+        "courtName": { "type": "string", "maxLength": 128 },
+        "mobile": { "type": "string", "maxLength": 20 }
+      },
+      "required": ["id", "tenantId", "advocateId", "name"]
+    },
+    "Election": {
+      "title": "Election",
+      "description": "Bar Association annual or term election configuration",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "tenantId": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 256 },
+        "year": { "type": "string", "maxLength": 16 },
+        "status": { "type": "string", "enum": ["Draft", "NominationsOpen", "VotingOpen", "VotingClosed", "ResultsDeclared"] }
+      },
+      "required": ["id", "tenantId", "title", "status"]
+    },
+    "Vote": {
+      "title": "Vote",
+      "description": "Secret ballot cast in an election (immutable write-once)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "electionId": { "type": "string", "maxLength": 128 },
+        "tenantId": { "type": "string", "maxLength": 128 },
+        "voterIdHash": { "type": "string", "maxLength": 128 },
+        "postId": { "type": "string", "maxLength": 128 },
+        "candidateId": { "type": "string", "maxLength": 128 }
+      },
+      "required": ["id", "electionId", "tenantId", "voterIdHash", "postId", "candidateId"]
+    },
+    "ELibraryItem": {
+      "title": "ELibraryItem",
+      "description": "Legal acts, Bare Acts, precedents, and legal reference books",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 256 },
+        "category": { "type": "string", "maxLength": 64 },
+        "author": { "type": "string", "maxLength": 128 },
+        "pdfUrl": { "type": "string", "maxLength": 1024 }
+      },
+      "required": ["id", "title", "category"]
+    },
+    "AppSettings": {
+      "title": "AppSettings",
+      "description": "Platform global configuration and super admin settings",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "platformName": { "type": "string", "maxLength": 128 },
+        "allowRegistrations": { "type": "string", "maxLength": 16 }
+      },
+      "required": ["id", "platformName"]
+    }
+  },
+  "firestore": {
+    "/tenants/{tenantId}": {
+      "schema": "TenantOrganization",
+      "description": "Bar Associations and legal tenants collection"
+    },
+    "/tenants/{tenantId}/advocates/{advocateId}": {
+      "schema": "Advocate",
+      "description": "Advocates belonging to a specific bar tenant"
+    },
+    "/tenants/{tenantId}/clients/{clientId}": {
+      "schema": "Client",
+      "description": "Litigant records under a tenant bar"
+    },
+    "/tenants/{tenantId}/elections/{electionId}": {
+      "schema": "Election",
+      "description": "Elections organized by the tenant bar"
+    },
+    "/tenants/{tenantId}/elections/{electionId}/votes/{voteId}": {
+      "schema": "Vote",
+      "description": "Cast ballots in bar elections"
+    },
+    "/elibrary/{itemId}": {
+      "schema": "ELibraryItem",
+      "description": "Global e-library bare acts and reference materials"
+    },
+    "/platform_settings/{settingId}": {
+      "schema": "AppSettings",
+      "description": "Platform settings for super admin"
+    }
+  }
+}

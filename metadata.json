@@ -1,0 +1,6 @@
+{
+  "name": "Bar Association Ballia",
+  "description": "Official PWA portal for Criminal & Revenue Bar Association, Ballia. Member management, digital QR ID cards, cause lists, client & case tracking, legal documents generator, fee receipts, and voting system.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

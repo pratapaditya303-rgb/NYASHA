@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Outer Dark Circle -->
+  <circle cx="256" cy="256" r="252" fill="#262626" />
+  
+  <!-- Concentric White Inner Ring -->
+  <circle cx="256" cy="256" r="236" fill="none" stroke="#FFFFFF" stroke-width="12" />
+
+  <!-- Advocate Collar / Bowtie -->
+  <path d="M 256 142 
+           L 164 92 
+           L 138 202 
+           L 208 170 
+           L 256 170 
+           L 304 170 
+           L 374 202 
+           L 348 92 
+           Z" 
+        fill="#FFFFFF" />
+
+  <!-- Left Band -->
+  <polygon points="208,170 248,170 218,422 142,422" fill="#FFFFFF" />
+
+  <!-- Right Band -->
+  <polygon points="264,170 304,170 370,422 294,422" fill="#FFFFFF" />
+</svg>

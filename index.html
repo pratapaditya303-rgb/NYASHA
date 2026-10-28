@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Criminal & Revenue Bar Association, Ballia (U.P.)</title>
+    <meta name="description" content="Official PWA Portal of Criminal & Revenue Bar Association, Ballia. Digital Bar Directory, QR ID Cards, Cause Lists, Case & Client Tracking, Legal Document Generator, Elections, and UP Law Assistant." />
+    
+    <!-- PWA & Mobile Meta -->
+    <meta name="theme-color" content="#020617" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Nyaay Sahayogi" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/pwa-192x192.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+
+    <!-- Open Graph -->
+    <meta property="og:title" content="NYAAY SAHAYOGI - Advocate & Bar Portal" />
+    <meta property="og:description" content="Official Bar Council, District Bar Association & Advocate Legal ERP with Digital ID, Cause Lists & Legal Drafting" />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="/pwa-512x512.png" />
+
+    <!-- Google Fonts for Judicial / Court Elegance -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800;900&family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&family=Rozha+One&family=Yatra+One&display=swap" rel="stylesheet">
+  </head>
+  <body class="bg-slate-900 text-slate-100 font-sans antialiased selection:bg-amber-500 selection:text-slate-900">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+    <script>
+      window.__pwaDeferredPrompt = null;
+      window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        window.__pwaDeferredPrompt = e;
+        window.dispatchEvent(new Event('pwa_prompt_ready'));
+      });
+      if ('caches' in window) {
+        caches.keys().then((keys) => {
+          keys.forEach((k) => {
+            if (k !== 'nyaay-sahayogi-pwa-v3') {
+              caches.delete(k);
+            }
+          });
+        });
+      }
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js')
+            .then((reg) => {
+              reg.update();
+              console.log('Nyaay Sahayogi PWA Service Worker Registered:', reg.scope);
+            })
+            .catch((err) => console.log('SW registration error:', err));
+        });
+      }
+    </script>
+  </body>
+</html>

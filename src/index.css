@@ -1,0 +1,219 @@
+@import "tailwindcss";
+
+@layer base {
+  html {
+    transition: background-color 0.25s ease, color 0.25s ease;
+  }
+
+  html.light body {
+    background-color: #f8fafc;
+    color: #0f172a;
+  }
+}
+
+/* ==========================================================================
+   LIGHT THEME OVERRIDES (html.light)
+   Transforms dark slate judicial theme into crisp Ivory & Gold Day Mode
+   ========================================================================== */
+
+/* Primary Backgrounds */
+html.light .bg-slate-950,
+html.light .bg-slate-950\/95,
+html.light .bg-slate-950\/90,
+html.light .bg-slate-950\/80,
+html.light .bg-slate-950\/70,
+html.light .bg-slate-950\/60,
+html.light .bg-slate-950\/50,
+html.light .bg-slate-950\/40 {
+  background-color: #f8fafc !important;
+}
+
+html.light .bg-slate-900,
+html.light .bg-slate-900\/95,
+html.light .bg-slate-900\/90,
+html.light .bg-slate-900\/80,
+html.light .bg-slate-900\/70,
+html.light .bg-slate-900\/60,
+html.light .bg-slate-900\/50,
+html.light .bg-slate-900\/40 {
+  background-color: #ffffff !important;
+  box-shadow: 0 4px 16px -4px rgba(15, 23, 42, 0.06), 0 2px 6px -1px rgba(15, 23, 42, 0.04) !important;
+}
+
+html.light .bg-slate-800,
+html.light .bg-slate-800\/90,
+html.light .bg-slate-800\/80,
+html.light .bg-slate-800\/60,
+html.light .bg-slate-800\/50,
+html.light .bg-slate-800\/40,
+html.light .bg-slate-800\/30 {
+  background-color: #f1f5f9 !important;
+}
+
+html.light .hover\:bg-slate-800:hover,
+html.light .hover\:bg-slate-700:hover,
+html.light .hover\:bg-slate-900:hover,
+html.light .hover\:bg-slate-850:hover {
+  background-color: #e2e8f0 !important;
+}
+
+/* Tinted Dark Backgrounds -> Soft Day Tints */
+html.light .bg-red-950,
+html.light .bg-red-950\/80,
+html.light .bg-red-950\/60,
+html.light .bg-red-950\/40,
+html.light .bg-rose-950 {
+  background-color: #fef2f2 !important;
+}
+
+html.light .bg-emerald-950,
+html.light .bg-emerald-950\/80,
+html.light .bg-emerald-950\/50 {
+  background-color: #ecfdf5 !important;
+}
+
+html.light .bg-amber-950,
+html.light .bg-amber-950\/80,
+html.light .bg-amber-950\/40 {
+  background-color: #fffbeb !important;
+}
+
+html.light .bg-purple-950,
+html.light .bg-purple-950\/80 {
+  background-color: #f5f3ff !important;
+}
+
+/* Gradients in Light Mode */
+html.light .from-slate-950,
+html.light .from-slate-900 {
+  --tw-gradient-from: #ffffff !important;
+}
+
+html.light .via-slate-950,
+html.light .via-slate-900 {
+  --tw-gradient-via: #f8fafc !important;
+}
+
+html.light .to-slate-950,
+html.light .to-slate-900 {
+  --tw-gradient-to: #f1f5f9 !important;
+}
+
+html.light .from-red-950 {
+  --tw-gradient-from: #fef2f2 !important;
+}
+
+html.light .via-red-950\/60 {
+  --tw-gradient-via: #fee2e2 !important;
+}
+
+html.light .to-red-950 {
+  --tw-gradient-to: #fef2f2 !important;
+}
+
+html.light .from-amber-950\/40,
+html.light .to-amber-950\/40,
+html.light .to-amber-950 {
+  --tw-gradient-from: #fffbeb !important;
+  --tw-gradient-to: #fef3c7 !important;
+}
+
+html.light .from-emerald-950\/50 {
+  --tw-gradient-from: #ecfdf5 !important;
+}
+
+/* Typography Contrast in Light Mode */
+html.light .text-slate-100,
+html.light .text-white {
+  color: #0f172a !important;
+}
+
+html.light .text-slate-200 {
+  color: #1e293b !important;
+}
+
+html.light .text-slate-300 {
+  color: #334155 !important;
+}
+
+html.light .text-slate-400 {
+  color: #475569 !important;
+}
+
+html.light .text-slate-500 {
+  color: #64748b !important;
+}
+
+/* Preserve White Text on Solid Vibrant Buttons & Badges */
+html.light .bg-red-600,
+html.light .bg-red-500,
+html.light .bg-emerald-600,
+html.light .bg-emerald-500,
+html.light .bg-blue-600,
+html.light .bg-blue-500,
+html.light .bg-purple-600,
+html.light .bg-purple-500,
+html.light .bg-rose-600,
+html.light .from-red-600,
+html.light .from-red-700,
+html.light .from-emerald-600,
+html.light .from-blue-600,
+html.light .from-purple-600,
+html.light .bg-red-600 .text-white,
+html.light .bg-emerald-600 .text-white,
+html.light .bg-blue-600 .text-white,
+html.light .bg-purple-600 .text-white,
+html.light .from-red-600 .text-white,
+html.light .from-red-700 .text-white,
+html.light .from-red-700 span {
+  color: #ffffff !important;
+}
+
+/* High-Contrast Accent Text Adjustments for Day Mode */
+html.light .text-amber-300,
+html.light .text-amber-400,
+html.light .text-amber-200 {
+  color: #b45309 !important;
+}
+
+html.light .text-emerald-300,
+html.light .text-emerald-400 {
+  color: #047857 !important;
+}
+
+html.light .text-red-200,
+html.light .text-red-300,
+html.light .text-red-400,
+html.light .text-rose-300,
+html.light .text-rose-400 {
+  color: #b91c1c !important;
+}
+
+html.light .text-blue-300,
+html.light .text-blue-400 {
+  color: #1d4ed8 !important;
+}
+
+html.light .text-purple-300,
+html.light .text-purple-400 {
+  color: #6d28d9 !important;
+}
+
+/* Borders & Dividers in Light Mode */
+html.light .border-slate-900,
+html.light .border-slate-800,
+html.light .border-slate-800\/80,
+html.light .border-slate-800\/60 {
+  border-color: #e2e8f0 !important;
+}
+
+html.light .border-slate-700 {
+  border-color: #cbd5e1 !important;
+}
+
+html.light .divide-slate-800 > :not([hidden]) ~ :not([hidden]),
+html.light .divide-slate-800\/80 > :not([hidden]) ~ :not([hidden]),
+html.light .divide-slate-800\/60 > :not([hidden]) ~ :not([hidden]) {
+  border-color: #e2e8f0 !important;
+}
+

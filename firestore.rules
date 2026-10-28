@@ -1,0 +1,155 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net: Default-Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Hardened Primitives
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isSuperAdmin() {
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        (request.auth.token.email != null && request.auth.token.email == 'nyaaysahayogi@gmail.com')
+      );
+    }
+
+    function isTenantAdmin(tenantId) {
+      return isSuperAdmin() || (
+        isSignedIn() && 
+        exists(/databases/$(database)/documents/tenants/$(tenantId)/advocates/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/tenants/$(tenantId)/advocates/$(request.auth.uid)).data.role in ['bar_admin', 'state_bar_admin']
+      );
+    }
+
+    // Entity Validation Blueprints
+    function isValidTenant(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 256 &&
+             data.district is string && data.district.size() <= 128 &&
+             data.plan in ['TRIAL', 'STARTER', 'PROFESSIONAL', 'ENTERPRISE_BAR'] &&
+             data.status in ['ACTIVE', 'EXPIRED', 'SUSPENDED'] &&
+             data.licenseKey is string && data.licenseKey.size() <= 64;
+    }
+
+    function isValidAdvocate(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.tenantId is string && data.tenantId.size() <= 128 &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 128 &&
+             data.email is string && data.email.size() <= 128 &&
+             data.role in ['super_admin', 'state_bar_admin', 'bar_admin', 'advocate', 'junior_advocate'] &&
+             data.status in ['APPROVED', 'PENDING', 'REJECTED', 'SUSPENDED'];
+    }
+
+    function isValidClient(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.tenantId is string && data.tenantId.size() <= 128 &&
+             data.advocateId is string && data.advocateId.size() <= 128 &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 128;
+    }
+
+    function isValidVote(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.electionId is string && data.electionId.size() <= 128 &&
+             data.tenantId is string && data.tenantId.size() <= 128 &&
+             data.voterIdHash is string && data.voterIdHash.size() <= 128 &&
+             data.postId is string && data.postId.size() <= 128 &&
+             data.candidateId is string && data.candidateId.size() <= 128;
+    }
+
+    function isValidELibraryItem(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.title is string && data.title.size() > 0 && data.title.size() <= 256 &&
+             data.category is string && data.category.size() <= 64;
+    }
+
+    // 1. Tenants Collection (Bar Associations)
+    match /tenants/{tenantId} {
+      allow get: if isSignedIn() && isValidId(tenantId);
+      allow list: if isSignedIn();
+      allow create: if isSuperAdmin() && isValidId(tenantId) && isValidTenant(incoming());
+      allow update: if isSuperAdmin() && isValidId(tenantId) && isValidTenant(incoming());
+      allow delete: if isSuperAdmin() && isValidId(tenantId);
+
+      // 2. Advocates Subcollection
+      match /advocates/{advocateId} {
+        allow get: if isSignedIn() && isValidId(advocateId);
+        allow list: if isSignedIn();
+        allow create: if isSignedIn() && isValidId(advocateId) && isValidAdvocate(incoming()) && (
+          isTenantAdmin(tenantId) || request.auth.uid == advocateId
+        );
+        allow update: if isSignedIn() && isValidId(advocateId) && isValidAdvocate(incoming()) && (
+          isTenantAdmin(tenantId) || request.auth.uid == advocateId
+        ) && incoming().tenantId == existing().tenantId;
+        allow delete: if isTenantAdmin(tenantId) && isValidId(advocateId);
+      }
+
+      // 3. Litigant Clients Subcollection (Restricted Access)
+      match /clients/{clientId} {
+        allow get: if isSignedIn() && isValidId(clientId) && (
+          isTenantAdmin(tenantId) || existing().advocateId == request.auth.uid
+        );
+        allow list: if isSignedIn() && (
+          isTenantAdmin(tenantId) || resource.data.advocateId == request.auth.uid
+        );
+        allow create: if isSignedIn() && isValidId(clientId) && isValidClient(incoming()) && (
+          isTenantAdmin(tenantId) || incoming().advocateId == request.auth.uid
+        );
+        allow update: if isSignedIn() && isValidId(clientId) && isValidClient(incoming()) && (
+          isTenantAdmin(tenantId) || existing().advocateId == request.auth.uid
+        );
+        allow delete: if isSignedIn() && isValidId(clientId) && (
+          isTenantAdmin(tenantId) || existing().advocateId == request.auth.uid
+        );
+      }
+
+      // 4. Elections Subcollection
+      match /elections/{electionId} {
+        allow get: if isSignedIn() && isValidId(electionId);
+        allow list: if isSignedIn();
+        allow create, update, delete: if isTenantAdmin(tenantId) && isValidId(electionId);
+
+        // 5. Votes Subcollection (Write-Once Secret Ballot)
+        match /votes/{voteId} {
+          allow get: if isTenantAdmin(tenantId) && isValidId(voteId);
+          allow list: if isTenantAdmin(tenantId);
+          // Voters can create their vote once; updates and deletions are strictly blocked
+          allow create: if isSignedIn() && isValidId(voteId) && isValidVote(incoming());
+          allow update: if false; // Immutable ballots
+          allow delete: if isSuperAdmin(); // Only Super Admin can purge for test resets
+        }
+      }
+    }
+
+    // 6. Global E-Library Collection (Public Read for Authenticated Users)
+    match /elibrary/{itemId} {
+      allow get: if isSignedIn() && isValidId(itemId);
+      allow list: if isSignedIn();
+      allow create, update, delete: if isSuperAdmin() && isValidId(itemId) && isValidELibraryItem(incoming());
+    }
+
+    // 7. Platform Settings (Super Admin Only)
+    match /platform_settings/{settingId} {
+      allow get: if isSignedIn() && isValidId(settingId);
+      allow list: if isSuperAdmin();
+      allow create, update, delete: if isSuperAdmin() && isValidId(settingId);
+    }
+  }
+}

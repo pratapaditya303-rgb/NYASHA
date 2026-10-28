@@ -1,0 +1,38 @@
+{
+  "id": "/",
+  "name": "NYAAY SAHAYOGI - Bar & Legal ERP",
+  "short_name": "Nyaay Sahayogi",
+  "description": "NYAAY SAHAYOGI - Official Bar Council, District Bar Association & Advocate ERP Portal with QR ID Cards, Case Diary, Legal Drafting & e-Voting",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#020617",
+  "theme_color": "#020617",
+  "icons": [
+    {
+      "src": "/pwa-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

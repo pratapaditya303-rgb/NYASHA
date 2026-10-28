@@ -78,13 +78,15 @@ import {
   StateBarVote,
   StateBarElectionConfig,
   StateBarVoterEligibility,
-  ALL_UP_DISTRICTS
+  ALL_UP_DISTRICTS,
+  NotificationItem
 } from '../types';
 import { db } from '../lib/store';
 import { ALL_FEATURE_MODULES } from '../lib/modulesConfig';
 import { exportFinanceLedgerToExcel } from '../lib/excelExport';
 import { TenantDropdownCustomizer } from '../components/TenantDropdownCustomizer';
 import { AdvocateLogo } from '../components/AdvocateLogo';
+import { broadcastMessage } from '../services/RealtimeSyncEngine';
 
 interface AdminPanelViewProps {
   onLogout: () => void;
@@ -281,6 +283,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
   const [notifTitle, setNotifTitle] = useState('');
   const [notifMessage, setNotifMessage] = useState('');
   const [notifSuccess, setNotifSuccess] = useState(false);
+  const [notifications, setNotifications] = useState<NotificationItem[]>(db.getNotifications());
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const showToast = (msg: string) => {
@@ -304,6 +307,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     setCourts(db.getCourts());
     setCaseStages(db.getCaseStages());
     setCurrentTenant(db.getCurrentTenant());
+    setNotifications(db.getNotifications());
   };
 
   React.useEffect(() => {
@@ -1244,24 +1248,43 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     });
   };
 
-  const handleSendBroadcast = (e: React.FormEvent) => {
+  const handleSendBroadcast = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!notifTitle || !notifMessage) return;
+    if (!notifTitle.trim() || !notifMessage.trim()) return;
 
-    db.addNotification({
+    const newNotif: NotificationItem = {
       id: 'notif_' + Date.now(),
-      title: notifTitle,
-      message: notifMessage,
+      title: notifTitle.trim(),
+      message: notifMessage.trim(),
       targetRole: 'all',
       isRead: false,
       createdAt: todayStr
-    });
+    };
+
+    db.addNotification(newNotif);
+
+    // Cross-device broadcast chime and pop-up alert
+    try {
+      await broadcastMessage(notifTitle.trim(), notifMessage.trim(), {
+        category: 'notice',
+        senderName: currentUser?.name || 'बार एसोसिएशन (Bar Association)'
+      });
+    } catch (err) {
+      console.warn('Realtime broadcast notice error:', err);
+    }
 
     setNotifSuccess(true);
     setNotifTitle('');
     setNotifMessage('');
-    setTimeout(() => setNotifSuccess(false), 3500);
-    showToast('Bar announcement broadcasted to all advocates!');
+    refreshData();
+    setTimeout(() => setNotifSuccess(false), 4000);
+    showToast('📢 Bar announcement broadcasted across all devices & Cloud Firestore!');
+  };
+
+  const handleDeleteBroadcast = (id: string) => {
+    db.deleteNotification(id);
+    refreshData();
+    showToast('Broadcast notice removed.');
   };
 
   // Courts Master Handlers
@@ -2918,54 +2941,116 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
 
       {/* TAB 6: BROADCAST NOTICE */}
       {activeTab === 'broadcast' && (
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl max-w-2xl space-y-4">
-          <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
-            <Bell className="w-5 h-5 text-amber-400" />
-            Send Bar Association Notice / Announcement
-          </h3>
-          <p className="text-xs text-slate-400">
-            Broadcast emergency court holidays, general body meetings, or bar council circulars to all member advocates.
-          </p>
-
-          {notifSuccess && (
-            <div className="p-3.5 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-semibold flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-              <span>Announcement successfully broadcasted to all member apps!</span>
-            </div>
-          )}
-
-          <form onSubmit={handleSendBroadcast} className="space-y-4 text-xs">
-            <div>
-              <label className="block font-semibold text-slate-300 mb-1">Notice Title / बाबत *</label>
-              <input
-                type="text"
-                required
-                value={notifTitle}
-                onChange={(e) => setNotifTitle(e.target.value)}
-                placeholder="e.g. General Body Meeting / Holi Court Recess Notice"
-                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2.5 text-slate-100 focus:outline-none focus:border-amber-500"
-              />
+        <div className="space-y-6 max-w-3xl">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
+                <Bell className="w-5 h-5 text-amber-400" />
+                Send Bar Association Notice / Announcement (सूचना प्रसारण)
+              </h3>
+              <span className="text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                <span>Cloud Synced Across Devices</span>
+              </span>
             </div>
 
-            <div>
-              <label className="block font-semibold text-slate-300 mb-1">Notice Message / सूचना विवरण *</label>
-              <textarea
-                rows={4}
-                required
-                value={notifMessage}
-                onChange={(e) => setNotifMessage(e.target.value)}
-                placeholder="All member advocates are informed that the monthly General Body Meeting will be held in the Bar Library Hall at 3:30 PM..."
-                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2.5 text-slate-100 focus:outline-none focus:border-amber-500"
-              />
+            <p className="text-xs text-slate-400">
+              Broadcast emergency court holidays, general body meetings, strike circulars, or bar council orders to all member advocates in real-time.
+            </p>
+
+            {notifSuccess && (
+              <div className="p-3.5 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-semibold flex items-center gap-2 animate-fadeIn">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                <span>Announcement successfully broadcasted to all advocate devices and synchronized to Cloud Firestore!</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSendBroadcast} className="space-y-4 text-xs">
+              <div>
+                <label className="block font-semibold text-slate-300 mb-1">Notice Title / बाबत *</label>
+                <input
+                  type="text"
+                  required
+                  value={notifTitle}
+                  onChange={(e) => setNotifTitle(e.target.value)}
+                  placeholder="उदा. आवश्यक आमसभा सूचना / होली अवकाश / विधिक हड़ताल परिपत्र"
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2.5 text-slate-100 focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-300 mb-1">Notice Message / सूचना विवरण *</label>
+                <textarea
+                  rows={4}
+                  required
+                  value={notifMessage}
+                  onChange={(e) => setNotifMessage(e.target.value)}
+                  placeholder="समस्त सम्मानित अधिवक्ता साथियों को सूचित किया जाता है कि बार सभागार में दोपहर 03:30 बजे आवश्यक बैठक आयोजित है..."
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2.5 text-slate-100 focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div className="flex items-center justify-between pt-1">
+                <span className="text-[11px] text-slate-400 flex items-center gap-1">
+                  <span>🔔 रियल-टाइम नोटिफिकेशन + ऑडियो अलर्ट</span>
+                </span>
+                <button
+                  type="submit"
+                  className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs shadow-lg shadow-amber-500/20 transition-all flex items-center gap-1.5"
+                >
+                  <Bell className="w-3.5 h-3.5" />
+                  <span>Broadcast Notice (अभी प्रसारित करें)</span>
+                </button>
+              </div>
+            </form>
+          </div>
+
+          {/* Broadcast Notices History */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h4 className="text-sm font-bold text-slate-100 flex items-center gap-2">
+                <span>📜 Sent Broadcast Notices History (प्रसारित सूचनाओं का इतिहास)</span>
+              </h4>
+              <span className="text-xs text-amber-400 font-mono font-bold">
+                {notifications.length} Notices
+              </span>
             </div>
 
-            <button
-              type="submit"
-              className="px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-lg shadow-amber-500/20"
-            >
-              Broadcast Notice
-            </button>
-          </form>
+            {notifications.length === 0 ? (
+              <p className="text-xs text-slate-400 py-4 text-center">अभी तक कोई प्रसारण सूचना जारी नहीं की गई है।</p>
+            ) : (
+              <div className="space-y-3">
+                {notifications.map((n) => (
+                  <div
+                    key={n.id}
+                    className="p-4 rounded-xl bg-slate-800/70 border border-slate-700/80 flex items-start justify-between gap-3 text-xs"
+                  >
+                    <div className="space-y-1.5 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-bold text-slate-100 text-sm">{n.title}</span>
+                        <span className="text-[10px] bg-slate-700 text-slate-300 px-2 py-0.5 rounded font-mono">
+                          {n.createdAt || todayStr}
+                        </span>
+                        <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded font-bold">
+                          ✓ Live on All Devices
+                        </span>
+                      </div>
+                      <p className="text-slate-300 text-xs leading-relaxed whitespace-pre-line">{n.message}</p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteBroadcast(n.id)}
+                      title="Delete Notice"
+                      className="p-2 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors flex-shrink-0"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 

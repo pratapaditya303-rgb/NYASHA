@@ -2690,7 +2690,7 @@ class LocalStore {
     }
   }
 
-  private lastCloudTimestamp = '';
+  private lastCloudTimestamps: Record<string, string> = {};
 
   // Multi-device cloud sync (merges local, Firestore, and server state across Mobile & Laptop)
   public async syncWithServer(pushLocalFirst = false): Promise<void> {
@@ -2739,33 +2739,54 @@ class LocalStore {
     }
   }
 
-  // Push modified state directly to Google Cloud Firestore
+  // Push modified state directly to Google Cloud Firestore across all devices
   public async pushToFirestoreCloud(): Promise<void> {
     try {
       const advocates = this.getAdvocates();
-      const payload = {
-        fields: {
-          data: { stringValue: JSON.stringify(advocates) },
-          updatedAt: { stringValue: new Date().toISOString() },
-          count: { integerValue: String(advocates.length) }
+      const earnings = this.getEarnings();
+      const expenses = this.getExpenses();
+      const notifications = this.getNotifications();
+      const nowIso = new Date().toISOString();
+
+      const pushDoc = async (docName: string, data: any) => {
+        try {
+          const payload = {
+            fields: {
+              data: { stringValue: JSON.stringify(data) },
+              updatedAt: { stringValue: nowIso },
+              count: { integerValue: String(Array.isArray(data) ? data.length : 1) }
+            }
+          };
+          const url = `${FIRESTORE_BASE}/settings/${docName}?key=${FIRESTORE_API_KEY}`;
+          await fetch(url, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+        } catch (err) {
+          console.warn(`Firestore push failed for ${docName}:`, err);
         }
       };
-      const url = `${FIRESTORE_BASE}/settings/vault_advocates?key=${FIRESTORE_API_KEY}`;
-      await fetch(url, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
 
-      // Update sync metadata timestamp
-      const metaUrl = `${FIRESTORE_BASE}/settings/sync_metadata?key=${FIRESTORE_API_KEY}&updateMask.fieldPaths=lastUpdated&updateMask.fieldPaths=advocates`;
+      await Promise.allSettled([
+        pushDoc('vault_advocates', advocates),
+        pushDoc('vault_earnings', earnings),
+        pushDoc('vault_expenses', expenses),
+        pushDoc('vault_notifications', notifications)
+      ]);
+
+      // Update sync metadata timestamp so other devices pick up immediately
+      const metaUrl = `${FIRESTORE_BASE}/settings/sync_metadata?key=${FIRESTORE_API_KEY}&updateMask.fieldPaths=lastUpdated&updateMask.fieldPaths=advocates&updateMask.fieldPaths=earnings&updateMask.fieldPaths=expenses&updateMask.fieldPaths=notifications`;
       await fetch(metaUrl, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           fields: {
-            lastUpdated: { stringValue: new Date().toISOString() },
-            advocates: { stringValue: new Date().toISOString() }
+            lastUpdated: { stringValue: nowIso },
+            advocates: { stringValue: nowIso },
+            earnings: { stringValue: nowIso },
+            expenses: { stringValue: nowIso },
+            notifications: { stringValue: nowIso }
           }
         })
       }).catch(() => {});
@@ -2774,25 +2795,37 @@ class LocalStore {
     }
   }
 
-  // Pull latest advocates from Google Cloud Firestore and merge locally
+  // Pull latest advocates, earnings, expenses, and notifications from Google Cloud Firestore
   public async pullFromFirestoreCloud(): Promise<void> {
     try {
-      const url = `${FIRESTORE_BASE}/settings/vault_advocates?key=${FIRESTORE_API_KEY}`;
-      const res = await fetch(url);
-      if (res.ok) {
-        const doc = await res.json();
-        const updatedAt = doc?.fields?.updatedAt?.stringValue || '';
-        const rawData = doc?.fields?.data?.stringValue;
-        if (rawData && updatedAt && updatedAt !== this.lastCloudTimestamp) {
-          this.lastCloudTimestamp = updatedAt;
-          const cloudAdvocates = JSON.parse(rawData);
-          if (Array.isArray(cloudAdvocates) && cloudAdvocates.length > 0) {
-            this.applyServerStoreData({
-              [STORAGE_KEYS.ADVOCATES]: cloudAdvocates
-            });
+      const pullDoc = async (docName: string, storageKey: string) => {
+        try {
+          const url = `${FIRESTORE_BASE}/settings/${docName}?key=${FIRESTORE_API_KEY}`;
+          const res = await fetch(url);
+          if (!res.ok) return;
+          const doc = await res.json();
+          const updatedAt = doc?.fields?.updatedAt?.stringValue || '';
+          const rawData = doc?.fields?.data?.stringValue;
+          if (rawData && updatedAt && updatedAt !== this.lastCloudTimestamps[docName]) {
+            this.lastCloudTimestamps[docName] = updatedAt;
+            const parsed = JSON.parse(rawData);
+            if (Array.isArray(parsed)) {
+              this.applyServerStoreData({
+                [storageKey]: parsed
+              });
+            }
           }
+        } catch (e) {
+          console.warn(`Firestore pull error for ${docName}:`, e);
         }
-      }
+      };
+
+      await Promise.allSettled([
+        pullDoc('vault_advocates', STORAGE_KEYS.ADVOCATES),
+        pullDoc('vault_earnings', STORAGE_KEYS.EARNINGS),
+        pullDoc('vault_expenses', STORAGE_KEYS.EXPENSES),
+        pullDoc('vault_notifications', STORAGE_KEYS.NOTIFICATIONS)
+      ]);
     } catch (e) {
       console.warn('Firestore cloud pull error:', e);
     }
@@ -2812,8 +2845,18 @@ class LocalStore {
         let finalVal: unknown = v;
         let shouldUpdate = false;
 
-        // Smart merge for arrays (Advocates, Earnings, Expenses, etc.)
-        if (Array.isArray(currentVal) && Array.isArray(v)) {
+        // For Earnings, Expenses, and Notifications: Cloud Firestore holds the authoritative list
+        if (
+          k === STORAGE_KEYS.EARNINGS ||
+          k === STORAGE_KEYS.EXPENSES ||
+          k === STORAGE_KEYS.NOTIFICATIONS
+        ) {
+          if (Array.isArray(v)) {
+            finalVal = v;
+            shouldUpdate = JSON.stringify(finalVal) !== JSON.stringify(currentVal);
+          }
+        } else if (Array.isArray(currentVal) && Array.isArray(v)) {
+          // Smart merge for Advocates & other collections
           const map = new Map<string, any>();
           for (const item of currentVal) {
             if (item && typeof item === 'object') {
@@ -3097,10 +3140,13 @@ class LocalStore {
     return this.get<Earning[]>(STORAGE_KEYS.EARNINGS, DEFAULT_EARNINGS);
   }
 
+
   public addEarning(earning: Earning): void {
     const list = this.getEarnings();
     list.unshift(earning);
     this.set(STORAGE_KEYS.EARNINGS, list);
+    this.syncWithServer(true).catch(() => {});
+    window.dispatchEvent(new CustomEvent('crba_state_updated', { detail: { key: '_sys_vault_v2_earnings' } }));
   }
 
   public updateEarning(earning: Earning): void {
@@ -3109,12 +3155,16 @@ class LocalStore {
     if (idx !== -1) {
       list[idx] = earning;
       this.set(STORAGE_KEYS.EARNINGS, list);
+      this.syncWithServer(true).catch(() => {});
+      window.dispatchEvent(new CustomEvent('crba_state_updated', { detail: { key: '_sys_vault_v2_earnings' } }));
     }
   }
 
   public deleteEarning(id: string): void {
     const list = this.getEarnings().filter(e => e.id !== id);
     this.set(STORAGE_KEYS.EARNINGS, list);
+    this.syncWithServer(true).catch(() => {});
+    window.dispatchEvent(new CustomEvent('crba_state_updated', { detail: { key: '_sys_vault_v2_earnings' } }));
   }
 
   // Expenses
@@ -3126,6 +3176,8 @@ class LocalStore {
     const list = this.getExpenses();
     list.unshift(expense);
     this.set(STORAGE_KEYS.EXPENSES, list);
+    this.syncWithServer(true).catch(() => {});
+    window.dispatchEvent(new CustomEvent('crba_state_updated', { detail: { key: '_sys_vault_v2_expenses' } }));
   }
 
   public updateExpense(expense: Expense): void {
@@ -3134,12 +3186,16 @@ class LocalStore {
     if (idx !== -1) {
       list[idx] = expense;
       this.set(STORAGE_KEYS.EXPENSES, list);
+      this.syncWithServer(true).catch(() => {});
+      window.dispatchEvent(new CustomEvent('crba_state_updated', { detail: { key: '_sys_vault_v2_expenses' } }));
     }
   }
 
   public deleteExpense(id: string): void {
     const list = this.getExpenses().filter(e => e.id !== id);
     this.set(STORAGE_KEYS.EXPENSES, list);
+    this.syncWithServer(true).catch(() => {});
+    window.dispatchEvent(new CustomEvent('crba_state_updated', { detail: { key: '_sys_vault_v2_expenses' } }));
   }
 
   // Finance Categories (Editable Income / Expense categories)
@@ -4210,6 +4266,7 @@ PRAYER: Restrain defendants from altering nature of suit land or dispossessing p
     list.unshift(notification);
     this.set(STORAGE_KEYS.NOTIFICATIONS, list);
     this.syncWithServer(true).catch(() => {});
+    window.dispatchEvent(new CustomEvent('crba_state_updated', { detail: { key: '_sys_vault_v2_notifications' } }));
   }
 
   public markNotificationAsRead(id: string): void {
@@ -4218,7 +4275,16 @@ PRAYER: Restrain defendants from altering nature of suit land or dispossessing p
     if (idx !== -1) {
       list[idx].isRead = true;
       this.set(STORAGE_KEYS.NOTIFICATIONS, list);
+      this.syncWithServer(true).catch(() => {});
+      window.dispatchEvent(new CustomEvent('crba_state_updated', { detail: { key: '_sys_vault_v2_notifications' } }));
     }
+  }
+
+  public deleteNotification(id: string): void {
+    const list = this.getNotifications().filter(n => n.id !== id);
+    this.set(STORAGE_KEYS.NOTIFICATIONS, list);
+    this.syncWithServer(true).catch(() => {});
+    window.dispatchEvent(new CustomEvent('crba_state_updated', { detail: { key: '_sys_vault_v2_notifications' } }));
   }
 
   // Chats

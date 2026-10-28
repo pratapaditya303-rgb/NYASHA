@@ -650,33 +650,39 @@ export const RegisterView: React.FC<RegisterViewProps> = ({ onNavigate, onRegist
           </div>
 
           <h3 className="text-xl font-bold text-slate-100">
-            Registration Submitted Successfully!
+            Registration Submitted Successfully! (पंजीकरण सफलतापूर्वक दर्ज)
           </h3>
 
-          <p className="text-xs text-slate-300 leading-relaxed">
-            Your application for <strong>{selectedBarName}</strong> membership is currently in <strong>PENDING_APPROVAL</strong> state.
-          </p>
+          <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-xs text-amber-300 flex items-start gap-2.5 text-left">
+            <span className="text-base flex-shrink-0">⏳</span>
+            <div>
+              <p className="font-bold">स्थिति: बार एडमिन सत्यापन हेतु लंबित (PENDING_APPROVAL)</p>
+              <p className="text-[11px] text-slate-300 mt-0.5">
+                सुरक्षा एवं बार नियमों के अनुसार, बार एसोसिएशन एडमिन द्वारा आपके प्रमाण पत्र एवं बार पंजीकरण का सत्यापन व अनुमोदन (Approve) किए जाने के बाद ही आप लॉगिन कर पाएंगे।
+              </p>
+            </div>
+          </div>
 
           <div className="p-3.5 bg-slate-950 rounded-xl border border-slate-800 text-xs text-amber-300 font-mono text-left space-y-1">
             <p>Advocate: {name}</p>
             <p>Affiliated Bar: {selectedBarName}</p>
             <p>Bar Council No: {barNo}</p>
             <p>Tahsil / District: {tahsil} ({district})</p>
-            <p>Status: Under Verification by Bar Office Admin</p>
+            <p className="text-amber-400 font-bold">Status: ⏳ PENDING_APPROVAL (Admin Approval Required)</p>
           </div>
 
           <div className="pt-2 flex flex-col sm:flex-row gap-3">
             <button
-              onClick={() => onNavigate('login')}
+              onClick={() => onNavigate('home')}
               className="flex-1 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow"
             >
-              Proceed to Login
+              Back to Home (मुख्य पृष्ठ)
             </button>
             <button
-              onClick={() => onNavigate('home')}
-              className="flex-1 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs"
+              onClick={() => onNavigate('login')}
+              className="flex-1 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs border border-slate-700"
             >
-              Back to Home
+              Check Login Status (लॉगिन स्थिति देखें)
             </button>
           </div>
         </div>

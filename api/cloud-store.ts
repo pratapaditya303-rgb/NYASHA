@@ -21,41 +21,73 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    const url = `${FIRESTORE_BASE}/settings/vault_advocates?key=${FIRESTORE_API_KEY}`;
-
-    if (req.method === 'GET') {
-      const fRes = await fetch(url);
-      if (fRes.ok) {
-        const doc = await fRes.json();
-        const raw = doc?.fields?.data?.stringValue;
-        const advocates = raw ? JSON.parse(raw) : [];
-        return res.status(200).json({
-          status: 'ok',
-          version: Date.now(),
-          data: {
-            _sys_vault_v2_advocates: advocates
-          }
-        });
+    const fetchDoc = async (docName: string) => {
+      try {
+        const u = `${FIRESTORE_BASE}/settings/${docName}?key=${FIRESTORE_API_KEY}`;
+        const f = await fetch(u);
+        if (!f.ok) return [];
+        const j = await f.json();
+        const raw = j?.fields?.data?.stringValue;
+        return raw ? JSON.parse(raw) : [];
+      } catch {
+        return [];
       }
-      return res.status(200).json({ status: 'ok', data: {} });
-    }
+    };
 
-    if (req.method === 'POST') {
-      const { bulk } = req.body || {};
-      const advocates = bulk?._sys_vault_v2_advocates;
-      if (Array.isArray(advocates)) {
-        await fetch(url, {
+    const saveDoc = async (docName: string, items: any[]) => {
+      try {
+        const u = `${FIRESTORE_BASE}/settings/${docName}?key=${FIRESTORE_API_KEY}`;
+        await fetch(u, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             fields: {
-              data: { stringValue: JSON.stringify(advocates) },
+              data: { stringValue: JSON.stringify(items) },
               updatedAt: { stringValue: new Date().toISOString() },
-              count: { integerValue: String(advocates.length) }
+              count: { integerValue: String(items.length) }
             }
           })
         });
+      } catch {}
+    };
+
+    if (req.method === 'GET') {
+      const [advocates, earnings, expenses, notifications] = await Promise.all([
+        fetchDoc('vault_advocates'),
+        fetchDoc('vault_earnings'),
+        fetchDoc('vault_expenses'),
+        fetchDoc('vault_notifications')
+      ]);
+
+      return res.status(200).json({
+        status: 'ok',
+        version: Date.now(),
+        data: {
+          _sys_vault_v2_advocates: advocates,
+          _sys_vault_v2_earnings: earnings,
+          _sys_vault_v2_expenses: expenses,
+          _sys_vault_v2_notifications: notifications
+        }
+      });
+    }
+
+    if (req.method === 'POST') {
+      const { bulk, key, value } = req.body || {};
+      const tasks = [];
+
+      if (bulk && typeof bulk === 'object') {
+        if (Array.isArray(bulk._sys_vault_v2_advocates)) tasks.push(saveDoc('vault_advocates', bulk._sys_vault_v2_advocates));
+        if (Array.isArray(bulk._sys_vault_v2_earnings)) tasks.push(saveDoc('vault_earnings', bulk._sys_vault_v2_earnings));
+        if (Array.isArray(bulk._sys_vault_v2_expenses)) tasks.push(saveDoc('vault_expenses', bulk._sys_vault_v2_expenses));
+        if (Array.isArray(bulk._sys_vault_v2_notifications)) tasks.push(saveDoc('vault_notifications', bulk._sys_vault_v2_notifications));
+      } else if (key && Array.isArray(value)) {
+        if (key === '_sys_vault_v2_advocates') tasks.push(saveDoc('vault_advocates', value));
+        if (key === '_sys_vault_v2_earnings') tasks.push(saveDoc('vault_earnings', value));
+        if (key === '_sys_vault_v2_expenses') tasks.push(saveDoc('vault_expenses', value));
+        if (key === '_sys_vault_v2_notifications') tasks.push(saveDoc('vault_notifications', value));
       }
+
+      await Promise.all(tasks);
       return res.status(200).json({ status: 'ok', version: Date.now(), data: req.body });
     }
 

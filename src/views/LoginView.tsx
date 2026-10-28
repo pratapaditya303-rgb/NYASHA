@@ -108,9 +108,26 @@ export const LoginView: React.FC<LoginViewProps> = ({ onNavigate, onLoginSuccess
       db.updateAdvocate(matched.id, { status: 'APPROVED', role: 'super_admin' });
     }
 
-    if (!isSuperAdmin && matched.status === 'REJECTED') {
-      setErrorMessage('आपका खाता प्रशासक द्वारा निष्क्रिय या अस्वीकृत कर दिया गया है (Account Disabled/Rejected)।');
-      return;
+    // STRICT ADMIN APPROVAL CHECK:
+    // Only approved advocates or super_admin can log in. Pending accounts are strictly blocked.
+    if (!isSuperAdmin) {
+      const statusUpper = (matched.status || '').toUpperCase();
+      if (statusUpper === 'PENDING' || statusUpper === 'PENDING_APPROVAL') {
+        setErrorMessage(
+          '⏳ आपका पंजीकरण सत्यापन हेतु लंबित है (Account Pending Admin Approval)। बार एसोसिएशन एडमिन द्वारा आपके अभिलेखों एवं बार पंजीकरण का सत्यापन व अनुमोदन (Approve) किए जाने के बाद ही आप लॉगिन कर सकेंगे। कृपया बार कार्यालय से संपर्क करें।'
+        );
+        return;
+      }
+
+      if (statusUpper === 'REJECTED') {
+        setErrorMessage('❌ आपका खाता बार एसोसिएशन एडमिन द्वारा अस्वीकृत या निलंबित (Account Rejected/Disabled) कर दिया गया है। अधिक जानकारी के लिए बार कार्यालय से संपर्क करें।');
+        return;
+      }
+
+      if (statusUpper !== 'APPROVED') {
+        setErrorMessage('⚠️ आपका खाता अभी सक्रिय (Not Approved) नहीं है। बार एडमिन के अनुमोदन की प्रतीक्षा करें।');
+        return;
+      }
     }
 
     // STRICT PASSWORD VERIFICATION
@@ -140,6 +157,24 @@ export const LoginView: React.FC<LoginViewProps> = ({ onNavigate, onLoginSuccess
         (a.barNo || '').replace(/\//g, '-').toLowerCase() === clean
     );
     if (matched) {
+      const isSuperAdmin =
+        matched.role === 'super_admin' ||
+        (matched.email || '').toLowerCase() === 'nyaaysahayogi@gmail.com' ||
+        (matched.barNo || '').toUpperCase() === 'SUPER/001/2020';
+
+      if (!isSuperAdmin) {
+        const statusUpper = (matched.status || '').toUpperCase();
+        if (statusUpper === 'PENDING' || statusUpper === 'PENDING_APPROVAL') {
+          setErrorMessage(
+            '⏳ यह अधिवक्ता खाता अभी सत्यापन हेतु लंबित (Pending Admin Approval) है। बार एसोसिएशन एडमिन के अनुमोदन के बाद ही लॉगिन संभव होगा।'
+          );
+          return;
+        }
+        if (statusUpper !== 'APPROVED') {
+          setErrorMessage('⚠️ यह खाता अभी सक्रिय नहीं है।');
+          return;
+        }
+      }
       onLoginSuccess(matched);
     }
   };
@@ -211,6 +246,11 @@ export const LoginView: React.FC<LoginViewProps> = ({ onNavigate, onLoginSuccess
       setForgotError(
         'दर्ज की गई जन्मतिथि (Date of Birth) बार रिकॉर्ड से मेल नहीं खाती है। गोपनीयता सुरक्षा (Advocate Privacy) के कारण केवल सही जन्मतिथि होने पर ही पासवर्ड बदला जा सकता है।'
       );
+      return;
+    }
+
+    if (verified.role !== 'super_admin' && (verified.status === 'PENDING' || verified.status === 'PENDING_APPROVAL')) {
+      setForgotError('आपका खाता अभी बार एडमिन द्वारा सत्यापन हेतु लंबित (Pending Approval) है। अनुमोदन मिलने के बाद ही पासवर्ड बदला जा सकेगा।');
       return;
     }
 

@@ -3,13 +3,16 @@ import { Calendar, Search, Filter, Printer, Download, Scale, Clock, FileText } f
 import { CauseListItem } from '../types';
 import { db } from '../lib/store';
 import { DatePickerInput } from '../components/DatePickerInput';
+import { useRealtimeCollection } from '../hooks/useRealtimeCollection';
 
 export const CauseListView: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toLocaleDateString('en-GB'));
   const [selectedCourt, setSelectedCourt] = useState<string>('ALL');
   const [searchAdvocate, setSearchAdvocate] = useState('');
 
-  const causeList = db.getCauseList();
+  const { data: cloudCauseList } = useRealtimeCollection<CauseListItem>('causelist');
+  const localCauseList = db.getCauseList();
+  const causeList = cloudCauseList && cloudCauseList.length > 0 ? cloudCauseList : localCauseList;
 
   const courts = [
     'ALL',

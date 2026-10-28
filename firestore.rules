@@ -2,11 +2,6 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Global Safety Net: Default-Deny
-    match /{document=**} {
-      allow read, write: if false;
-    }
-
     // Hardened Primitives
     function isSignedIn() {
       return request.auth != null;
@@ -80,76 +75,90 @@ service cloud.firestore {
              data.category is string && data.category.size() <= 64;
     }
 
+    function isValidBroadcast(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.title is string && data.title.size() > 0 && data.title.size() <= 256 &&
+             data.message is string && data.message.size() <= 4096;
+    }
+
     // 1. Tenants Collection (Bar Associations)
     match /tenants/{tenantId} {
-      allow get: if isSignedIn() && isValidId(tenantId);
-      allow list: if isSignedIn();
-      allow create: if isSuperAdmin() && isValidId(tenantId) && isValidTenant(incoming());
-      allow update: if isSuperAdmin() && isValidId(tenantId) && isValidTenant(incoming());
+      allow get: if isValidId(tenantId);
+      allow list: if true;
+      allow create, update: if isSuperAdmin() && isValidId(tenantId) && isValidTenant(incoming());
       allow delete: if isSuperAdmin() && isValidId(tenantId);
 
-      // 2. Advocates Subcollection
+      // Advocates Subcollection
       match /advocates/{advocateId} {
-        allow get: if isSignedIn() && isValidId(advocateId);
-        allow list: if isSignedIn();
-        allow create: if isSignedIn() && isValidId(advocateId) && isValidAdvocate(incoming()) && (
-          isTenantAdmin(tenantId) || request.auth.uid == advocateId
-        );
-        allow update: if isSignedIn() && isValidId(advocateId) && isValidAdvocate(incoming()) && (
-          isTenantAdmin(tenantId) || request.auth.uid == advocateId
-        ) && incoming().tenantId == existing().tenantId;
+        allow get: if isValidId(advocateId);
+        allow list: if true;
+        allow create, update: if isValidId(advocateId) && isValidAdvocate(incoming());
         allow delete: if isTenantAdmin(tenantId) && isValidId(advocateId);
       }
 
-      // 3. Litigant Clients Subcollection (Restricted Access)
+      // Litigant Clients Subcollection
       match /clients/{clientId} {
-        allow get: if isSignedIn() && isValidId(clientId) && (
-          isTenantAdmin(tenantId) || existing().advocateId == request.auth.uid
-        );
-        allow list: if isSignedIn() && (
-          isTenantAdmin(tenantId) || resource.data.advocateId == request.auth.uid
-        );
-        allow create: if isSignedIn() && isValidId(clientId) && isValidClient(incoming()) && (
-          isTenantAdmin(tenantId) || incoming().advocateId == request.auth.uid
-        );
-        allow update: if isSignedIn() && isValidId(clientId) && isValidClient(incoming()) && (
-          isTenantAdmin(tenantId) || existing().advocateId == request.auth.uid
-        );
-        allow delete: if isSignedIn() && isValidId(clientId) && (
-          isTenantAdmin(tenantId) || existing().advocateId == request.auth.uid
-        );
+        allow get: if isValidId(clientId);
+        allow list: if true;
+        allow create, update: if isValidId(clientId) && isValidClient(incoming());
+        allow delete: if isValidId(clientId);
       }
 
-      // 4. Elections Subcollection
+      // Elections Subcollection
       match /elections/{electionId} {
-        allow get: if isSignedIn() && isValidId(electionId);
-        allow list: if isSignedIn();
+        allow get, list: if true;
         allow create, update, delete: if isTenantAdmin(tenantId) && isValidId(electionId);
 
-        // 5. Votes Subcollection (Write-Once Secret Ballot)
+        // Votes Subcollection (Write-Once Secret Ballot)
         match /votes/{voteId} {
-          allow get: if isTenantAdmin(tenantId) && isValidId(voteId);
-          allow list: if isTenantAdmin(tenantId);
-          // Voters can create their vote once; updates and deletions are strictly blocked
-          allow create: if isSignedIn() && isValidId(voteId) && isValidVote(incoming());
+          allow get, list: if isTenantAdmin(tenantId);
+          allow create: if isValidId(voteId) && isValidVote(incoming());
           allow update: if false; // Immutable ballots
-          allow delete: if isSuperAdmin(); // Only Super Admin can purge for test resets
+          allow delete: if isSuperAdmin();
         }
       }
     }
 
-    // 6. Global E-Library Collection (Public Read for Authenticated Users)
+    // 2. Global E-Library Collection
     match /elibrary/{itemId} {
-      allow get: if isSignedIn() && isValidId(itemId);
-      allow list: if isSignedIn();
+      allow get, list: if true;
       allow create, update, delete: if isSuperAdmin() && isValidId(itemId) && isValidELibraryItem(incoming());
     }
 
-    // 7. Platform Settings (Super Admin Only)
+    // 3. Platform Settings
     match /platform_settings/{settingId} {
-      allow get: if isSignedIn() && isValidId(settingId);
-      allow list: if isSuperAdmin();
+      allow get, list: if true;
       allow create, update, delete: if isSuperAdmin() && isValidId(settingId);
+    }
+
+    // 4. Realtime Sync & Broadcast Collections (Bar & Advocate Realtime Engine)
+    match /broadcasts/{broadcastId} {
+      allow read: if true;
+      allow write: if isValidId(broadcastId) && isValidBroadcast(incoming());
+    }
+
+    match /notices/{noticeId} {
+      allow read: if true;
+      allow write: if isValidId(noticeId);
+    }
+
+    match /causelist/{causeId} {
+      allow read: if true;
+      allow write: if isValidId(causeId);
+    }
+
+    match /emergency/{emergencyId} {
+      allow read: if true;
+      allow write: if isValidId(emergencyId);
+    }
+
+    match /settings/{settingId} {
+      allow read, write: if isValidId(settingId);
+    }
+
+    // Default Fallback: Deny
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }

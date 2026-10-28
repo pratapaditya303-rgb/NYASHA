@@ -5,6 +5,8 @@ import { Footer } from './components/Footer';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { AILegalAssistant } from './components/AILegalAssistant';
 import { EmergencyLawyerModal } from './components/EmergencyLawyerModal';
+import { BroadcastAlertBanner } from './components/BroadcastAlertBanner';
+import { startRealtimeSync, requestPushPermission } from './services/RealtimeSyncEngine';
 
 // Views
 import { HomeView } from './views/HomeView';
@@ -82,6 +84,17 @@ export default function App() {
     return () => window.removeEventListener('hashchange', handleHashCheck);
   }, []);
 
+  // Initialize Real-time Cloud Sync & Push Permissions
+  useEffect(() => {
+    // 1. Request browser push permission
+    requestPushPermission();
+
+    // 2. Start realtime smart polling sync for bar collections
+    const cleanupSync = startRealtimeSync(['broadcasts', 'notices', 'causelist', 'emergency']);
+
+    return () => cleanupSync();
+  }, []);
+
   const handleLoginSuccess = (user: Advocate) => {
     setCurrentUser(user);
     localStorage.setItem('ballia_bar_current_user', JSON.stringify(user));
@@ -145,6 +158,12 @@ export default function App() {
       
       {/* Offline Connectivity Banner */}
       <OfflineIndicator />
+
+      {/* Realtime Bar Broadcast & Sync Status Strip */}
+      <BroadcastAlertBanner
+        currentUser={currentUser}
+        onNavigate={handleNavigate}
+      />
 
       {/* Main Navigation Header */}
       <Header

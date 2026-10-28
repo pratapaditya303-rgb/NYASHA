@@ -87,16 +87,30 @@
       },
       "required": ["id", "title", "category"]
     },
-    "AppSettings": {
-      "title": "AppSettings",
-      "description": "Platform global configuration and super admin settings",
+    "BroadcastAlert": {
+      "title": "BroadcastAlert",
+      "description": "High-priority Bar alerts, strikes, urgent notices, and circulars broadcast to all member devices",
       "type": "object",
       "properties": {
         "id": { "type": "string", "maxLength": 128 },
-        "platformName": { "type": "string", "maxLength": 128 },
-        "allowRegistrations": { "type": "string", "maxLength": 16 }
+        "title": { "type": "string", "maxLength": 256 },
+        "message": { "type": "string", "maxLength": 2048 },
+        "senderName": { "type": "string", "maxLength": 128 },
+        "category": { "type": "string", "enum": ["alert", "notice", "news", "update"] },
+        "actionUrl": { "type": "string", "maxLength": 512 },
+        "timestamp": { "type": "string", "maxLength": 64 }
       },
-      "required": ["id", "platformName"]
+      "required": ["id", "title", "message", "timestamp"]
+    },
+    "SyncMetadata": {
+      "title": "SyncMetadata",
+      "description": "Ultra-lightweight collection version timestamps for cloud polling",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "updatedAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["id"]
     }
   },
   "firestore": {
@@ -124,9 +138,25 @@
       "schema": "ELibraryItem",
       "description": "Global e-library bare acts and reference materials"
     },
-    "/platform_settings/{settingId}": {
-      "schema": "AppSettings",
-      "description": "Platform settings for super admin"
+    "/broadcasts/{broadcastId}": {
+      "schema": "BroadcastAlert",
+      "description": "Real-time cross-device broadcast messages and strike alerts"
+    },
+    "/notices/{noticeId}": {
+      "schema": "BroadcastAlert",
+      "description": "Bar notices and announcements"
+    },
+    "/causelist/{causeId}": {
+      "schema": "BroadcastAlert",
+      "description": "Daily Cause List records"
+    },
+    "/emergency/{emergencyId}": {
+      "schema": "BroadcastAlert",
+      "description": "Emergency legal assistance dispatches"
+    },
+    "/settings/{settingId}": {
+      "schema": "SyncMetadata",
+      "description": "Sync metadata and version tracking"
     }
   }
 }

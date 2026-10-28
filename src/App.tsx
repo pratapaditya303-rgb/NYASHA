@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { db } from './lib/store';
 import { Advocate } from './types';
 import { Header } from './components/Header';
 import { Footer } from './components/Footer';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { AILegalAssistant } from './components/AILegalAssistant';
+import { useSyncManager } from './hooks/useSyncManager';
 import { EmergencyLawyerModal } from './components/EmergencyLawyerModal';
 
 // Views
@@ -38,31 +38,8 @@ export default function App() {
     return savedTheme === 'light' ? 'light' : 'dark';
   });
 
-  const [, setCloudSyncTick] = useState<number>(0);
 
-  // Auto Cloud Synchronization Loop across all Advocates, Bar Admins & State Bar Council
-  useEffect(() => {
-    // Initial cloud sync
-    db.syncWithServer(false);
-
-    // Periodic 5-second live background sync
-    const syncInterval = setInterval(() => {
-      db.syncWithServer(false);
-    }, 5000);
-
-    const handleCloudSync = (e: Event) => {
-      const customEvt = e as CustomEvent<{ key?: string }>;
-      if (!customEvt.detail || customEvt.detail.key === 'CLOUD_SYNC') {
-        setCloudSyncTick((t) => t + 1);
-      }
-    };
-    window.addEventListener('crba_state_updated', handleCloudSync);
-
-    return () => {
-      clearInterval(syncInterval);
-      window.removeEventListener('crba_state_updated', handleCloudSync);
-    };
-  }, []);
+  useSyncManager();
 
   useEffect(() => {
     const root = document.documentElement;

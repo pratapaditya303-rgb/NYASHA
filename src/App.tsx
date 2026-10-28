@@ -7,6 +7,7 @@ import { AILegalAssistant } from './components/AILegalAssistant';
 import { EmergencyLawyerModal } from './components/EmergencyLawyerModal';
 import { BroadcastAlertBanner } from './components/BroadcastAlertBanner';
 import { startRealtimeSync, requestPushPermission } from './services/RealtimeSyncEngine';
+import { requestNotificationPermissionAndGetToken, listenToForegroundPushMessages } from './services/fcmService';
 
 // Views
 import { HomeView } from './views/HomeView';
@@ -84,10 +85,19 @@ export default function App() {
     return () => window.removeEventListener('hashchange', handleHashCheck);
   }, []);
 
-  // Initialize Real-time Cloud Sync & Push Permissions
+  // Initialize Real-time Cloud Sync & FCM Push Notifications
   useEffect(() => {
-    // 1. Request browser push permission
+    // 1. Request browser push permission & initialize FCM token
     requestPushPermission();
+    requestNotificationPermissionAndGetToken().then((token) => {
+      if (token) {
+        console.log('FCM Registration Token active for push notifications');
+      }
+    });
+
+    listenToForegroundPushMessages((payload) => {
+      console.log('Foreground Push Alert Received:', payload);
+    });
 
     // 2. Start realtime smart polling sync for bar collections
     const cleanupSync = startRealtimeSync(['broadcasts', 'notices', 'causelist', 'emergency']);

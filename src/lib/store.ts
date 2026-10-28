@@ -44,7 +44,8 @@ import {
   DEFAULT_PLATFORM_SETTINGS,
   generateCryptoLicenseKey
 } from './modulesConfig';
-import { securityShield } from '../utils/securityShield';
+import { doc, onSnapshot, setDoc, getDocFromServer } from 'firebase/firestore';
+import { firestoreDb, auth } from './firebase';
 import firebaseConfig from '../../firebase-applet-config.json';
 
 const FIRESTORE_API_KEY = firebaseConfig.apiKey || 'AIzaSyCF6iHdbCygnQDxzhrQWhEqd9kDx2DQtjQ';
@@ -2739,6 +2740,62 @@ class LocalStore {
     }
   }
 
+  // Attach Native Firestore onSnapshot() Realtime Listeners for instant multi-device sync
+  public setupRealtimeFirestoreListeners(): void {
+    if (typeof window === 'undefined') return;
+
+    const collectionsToListen = [
+      { docName: 'vault_advocates', storageKey: STORAGE_KEYS.ADVOCATES },
+      { docName: 'vault_earnings', storageKey: STORAGE_KEYS.EARNINGS },
+      { docName: 'vault_expenses', storageKey: STORAGE_KEYS.EXPENSES },
+      { docName: 'vault_notifications', storageKey: STORAGE_KEYS.NOTIFICATIONS }
+    ];
+
+    collectionsToListen.forEach(({ docName, storageKey }) => {
+      try {
+        const docRef = doc(firestoreDb, 'settings', docName);
+        onSnapshot(
+          docRef,
+          (snapshot) => {
+            if (snapshot.exists()) {
+              const docData = snapshot.data();
+              const rawData = docData?.data;
+              const updatedAt = docData?.updatedAt;
+
+              if (rawData && updatedAt && updatedAt !== this.lastCloudTimestamps[docName]) {
+                this.lastCloudTimestamps[docName] = updatedAt;
+                try {
+                  const parsed = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
+                  if (Array.isArray(parsed)) {
+                    this.applyServerStoreData({
+                      [storageKey]: parsed
+                    });
+                  }
+                } catch (e) {
+                  console.warn(`Error parsing realtime snapshot for ${docName}:`, e);
+                }
+              }
+            }
+          },
+          (error) => {
+            console.warn(`Firestore onSnapshot error for ${docName}:`, error);
+          }
+        );
+      } catch (err) {
+        console.warn(`Could not register listener for ${docName}:`, err);
+      }
+    });
+
+    // Test connection on boot per skill guideline
+    try {
+      getDocFromServer(doc(firestoreDb, 'settings', 'sync_metadata')).catch((err) => {
+        if (err instanceof Error && err.message.includes('the client is offline')) {
+          console.error('Please check your Firebase configuration or network.');
+        }
+      });
+    } catch {}
+  }
+
   // Push modified state directly to Google Cloud Firestore across all devices
   public async pushToFirestoreCloud(): Promise<void> {
     try {
@@ -2750,6 +2807,19 @@ class LocalStore {
 
       const pushDoc = async (docName: string, data: any) => {
         try {
+          // 1. Native Firestore SDK write triggers instant onSnapshot() on all devices in milliseconds!
+          const docRef = doc(firestoreDb, 'settings', docName);
+          await setDoc(
+            docRef,
+            {
+              data: JSON.stringify(data),
+              updatedAt: nowIso,
+              count: Array.isArray(data) ? data.length : 1
+            },
+            { merge: true }
+          ).catch(() => {});
+
+          // 2. REST API Fallback
           const payload = {
             fields: {
               data: { stringValue: JSON.stringify(data) },
@@ -2762,7 +2832,7 @@ class LocalStore {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
-          });
+          }).catch(() => {});
         } catch (err) {
           console.warn(`Firestore push failed for ${docName}:`, err);
         }
@@ -2997,9 +3067,9 @@ class LocalStore {
       this.set(STORAGE_KEYS.CASE_STAGE_MASTERS, DEFAULT_CASE_STAGE_MASTERS);
     }
 
-    // Start cross-device cloud sync (Mobile <-> Laptop)
-    // Always fetch server data first so new registrations and approvals sync instantly
+    // Start cross-device real-time cloud listeners & polling
     if (typeof window !== 'undefined') {
+      this.setupRealtimeFirestoreListeners();
       this.syncWithServer(false);
       window.addEventListener('focus', () => this.syncWithServer(false));
       setInterval(() => this.syncWithServer(false), 3000);

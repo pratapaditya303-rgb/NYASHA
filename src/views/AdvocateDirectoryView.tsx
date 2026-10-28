@@ -85,7 +85,16 @@ export const AdvocateDirectoryView: React.FC<AdvocateDirectoryViewProps> = ({
     };
   }, []);
 
-  const advocates = allAdvocates.filter(a => !a.status || a.status === 'APPROVED');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'APPROVED' | 'PENDING'>('ALL');
+
+  const approvedCount = allAdvocates.filter(a => !a.status || a.status === 'APPROVED').length;
+  const pendingCount = allAdvocates.filter(a => a.status === 'PENDING' || a.status === 'PENDING_APPROVAL').length;
+
+  const advocates = allAdvocates.filter(a => {
+    if (statusFilter === 'APPROVED') return !a.status || a.status === 'APPROVED';
+    if (statusFilter === 'PENDING') return a.status === 'PENDING' || a.status === 'PENDING_APPROVAL';
+    return true;
+  });
 
   const filteredAdvocates = advocates.filter(adv => {
     const q = (search || '').trim().toLowerCase();
@@ -195,6 +204,43 @@ export const AdvocateDirectoryView: React.FC<AdvocateDirectoryViewProps> = ({
           </select>
         </div>
 
+        {/* Membership Status Filter Tabs */}
+        <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800">
+          <button
+            type="button"
+            onClick={() => setStatusFilter('ALL')}
+            className={`text-[11px] px-2.5 py-1 rounded-lg font-semibold transition-all ${
+              statusFilter === 'ALL'
+                ? 'bg-amber-500 text-slate-950 font-bold shadow'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            All ({allAdvocates.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setStatusFilter('APPROVED')}
+            className={`text-[11px] px-2.5 py-1 rounded-lg font-semibold transition-all ${
+              statusFilter === 'APPROVED'
+                ? 'bg-emerald-500 text-slate-950 font-bold shadow'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            Verified ({approvedCount})
+          </button>
+          <button
+            type="button"
+            onClick={() => setStatusFilter('PENDING')}
+            className={`text-[11px] px-2.5 py-1 rounded-lg font-semibold transition-all ${
+              statusFilter === 'PENDING'
+                ? 'bg-amber-400 text-slate-950 font-bold shadow'
+                : 'text-amber-400 hover:text-amber-300'
+            }`}
+          >
+            ⏳ Pending ({pendingCount})
+          </button>
+        </div>
+
       </div>
 
       {/* Stats Counter Bar */}
@@ -233,6 +279,11 @@ export const AdvocateDirectoryView: React.FC<AdvocateDirectoryViewProps> = ({
                     <span className="text-[10px] font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20 truncate font-mono">
                       {adv.barNo}
                     </span>
+                    {(adv.status === 'PENDING' || adv.status === 'PENDING_APPROVAL') && (
+                      <span className="text-[9px] bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold px-1.5 py-0.5 rounded flex-shrink-0 animate-pulse">
+                        ⏳ Under Verification
+                      </span>
+                    )}
                     {adv.isTopCriminalLawyer && (
                       <span className="text-[9px] bg-red-500/20 text-red-400 font-bold px-1.5 py-0.5 rounded flex-shrink-0">
                         Top Criminal

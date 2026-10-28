@@ -7,7 +7,7 @@
       "dob": "01/01/1990",
       "mobile": "9876543210",
       "barNo": "UP/9999/2026",
-      "status": "PENDING_APPROVAL",
+      "status": "APPROVED",
       "role": "advocate"
     },
     {
@@ -32,7 +32,7 @@
       "password": "Password@123",
       "photoUrl": "https://images.unsplash.com/photo-1580489944761-15a19d654956?w=400&auto=format&fit=crop&q=80",
       "certificateUrl": "https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=600&auto=format&fit=crop&q=80",
-      "status": "PENDING",
+      "status": "APPROVED",
       "role": "advocate",
       "validTill": "31/12/2025",
       "createdAt": "01/09/2026",
@@ -2808,5 +2808,5 @@
     "notificationBanner": "Criminal & Revenue Bar Association Ballia Annual Elections 2026 are officially LIVE! All member advocates can cast their ballots.",
     "isVotingLive": true
   },
-  "_vault_version": 1793130825006
+  "_vault_version": 1793209760009
 }

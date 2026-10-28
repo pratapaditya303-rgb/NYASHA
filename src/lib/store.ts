@@ -45,6 +45,12 @@ import {
   generateCryptoLicenseKey
 } from './modulesConfig';
 import { securityShield } from '../utils/securityShield';
+import firebaseConfig from '../../firebase-applet-config.json';
+
+const FIRESTORE_API_KEY = firebaseConfig.apiKey || 'AIzaSyCF6iHdbCygnQDxzhrQWhEqd9kDx2DQtjQ';
+const FIRESTORE_PROJECT = firebaseConfig.projectId || 'gen-lang-client-0118328707';
+const FIRESTORE_DB = firebaseConfig.firestoreDatabaseId || 'ai-studio-barassociationba-b253281c-6ea1-4dcf-81b2-fa0bab8786df';
+const FIRESTORE_BASE = `https://firestore.googleapis.com/v1/projects/${FIRESTORE_PROJECT}/databases/${FIRESTORE_DB}/documents`;
 
 const STORAGE_KEYS = {
   ADVOCATES: '_sys_vault_v2_advocates',
@@ -2684,37 +2690,111 @@ class LocalStore {
     }
   }
 
-  // Multi-device cloud sync (merges local and server state across Mobile & Laptop)
+  private lastCloudTimestamp = '';
+
+  // Multi-device cloud sync (merges local, Firestore, and server state across Mobile & Laptop)
   public async syncWithServer(pushLocalFirst = false): Promise<void> {
     try {
       if (pushLocalFirst) {
-        const bulk: Record<string, unknown> = {};
-        for (const k of Object.values(STORAGE_KEYS)) {
-          if (k === STORAGE_KEYS.CURRENT_USER) continue;
-          const val = this.get<unknown>(k, null);
-          if (val !== null && val !== undefined) {
-            bulk[k] = val;
+        // 1. Push directly to Google Cloud Firestore (works on Vercel, Mobile & Desktop)
+        await this.pushToFirestoreCloud();
+
+        // 2. Also push to local server if Express dev server is running
+        try {
+          const bulk: Record<string, unknown> = {};
+          for (const k of Object.values(STORAGE_KEYS)) {
+            if (k === STORAGE_KEYS.CURRENT_USER) continue;
+            const val = this.get<unknown>(k, null);
+            if (val !== null && val !== undefined) {
+              bulk[k] = val;
+            }
           }
-        }
-        const res = await fetch('/api/cloud-store', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ bulk })
-        });
-        if (res.ok) {
-          const json = await res.json();
-          this.applyServerStoreData(json.data);
-          return;
-        }
+          await fetch('/api/cloud-store', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ bulk })
+          }).catch(() => {});
+        } catch {}
+        return;
       }
 
-      const res = await fetch('/api/cloud-store');
+      // Pull from Google Cloud Firestore (Primary distributed store for Vercel & Mobile)
+      await this.pullFromFirestoreCloud();
+
+      // Also pull from local Express server if running
+      try {
+        const res = await fetch('/api/cloud-store').catch(() => null);
+        if (res && res.ok) {
+          const contentType = res.headers.get('content-type') || '';
+          if (contentType.includes('application/json')) {
+            const json = await res.json().catch(() => null);
+            if (json && json.data) {
+              this.applyServerStoreData(json.data);
+            }
+          }
+        }
+      } catch {}
+    } catch (err) {
+      console.warn('Sync error:', err);
+    }
+  }
+
+  // Push modified state directly to Google Cloud Firestore
+  public async pushToFirestoreCloud(): Promise<void> {
+    try {
+      const advocates = this.getAdvocates();
+      const payload = {
+        fields: {
+          data: { stringValue: JSON.stringify(advocates) },
+          updatedAt: { stringValue: new Date().toISOString() },
+          count: { integerValue: String(advocates.length) }
+        }
+      };
+      const url = `${FIRESTORE_BASE}/settings/vault_advocates?key=${FIRESTORE_API_KEY}`;
+      await fetch(url, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      // Update sync metadata timestamp
+      const metaUrl = `${FIRESTORE_BASE}/settings/sync_metadata?key=${FIRESTORE_API_KEY}&updateMask.fieldPaths=lastUpdated&updateMask.fieldPaths=advocates`;
+      await fetch(metaUrl, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fields: {
+            lastUpdated: { stringValue: new Date().toISOString() },
+            advocates: { stringValue: new Date().toISOString() }
+          }
+        })
+      }).catch(() => {});
+    } catch (e) {
+      console.warn('Firestore cloud push error:', e);
+    }
+  }
+
+  // Pull latest advocates from Google Cloud Firestore and merge locally
+  public async pullFromFirestoreCloud(): Promise<void> {
+    try {
+      const url = `${FIRESTORE_BASE}/settings/vault_advocates?key=${FIRESTORE_API_KEY}`;
+      const res = await fetch(url);
       if (res.ok) {
-        const json = await res.json();
-        this.applyServerStoreData(json.data);
+        const doc = await res.json();
+        const updatedAt = doc?.fields?.updatedAt?.stringValue || '';
+        const rawData = doc?.fields?.data?.stringValue;
+        if (rawData && updatedAt && updatedAt !== this.lastCloudTimestamp) {
+          this.lastCloudTimestamp = updatedAt;
+          const cloudAdvocates = JSON.parse(rawData);
+          if (Array.isArray(cloudAdvocates) && cloudAdvocates.length > 0) {
+            this.applyServerStoreData({
+              [STORAGE_KEYS.ADVOCATES]: cloudAdvocates
+            });
+          }
+        }
       }
-    } catch {
-      // Offline mode fallback
+    } catch (e) {
+      console.warn('Firestore cloud pull error:', e);
     }
   }
 

@@ -82,6 +82,7 @@ import {
   NotificationItem
 } from '../types';
 import { db } from '../lib/store';
+import { sendLocalPushNotification } from '../services/fcmService';
 import { ALL_FEATURE_MODULES } from '../lib/modulesConfig';
 import { exportFinanceLedgerToExcel } from '../lib/excelExport';
 import { TenantDropdownCustomizer } from '../components/TenantDropdownCustomizer';
@@ -1262,6 +1263,13 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     };
 
     db.addNotification(newNotif);
+
+    // Trigger local & mobile push notification for general Bar Notice
+    sendLocalPushNotification(
+      `📢 ${notifTitle.trim()}`,
+      notifMessage.trim(),
+      'bar-notice-' + Date.now()
+    );
 
     // Cross-device broadcast chime and pop-up alert
     try {

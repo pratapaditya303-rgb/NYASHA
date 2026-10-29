@@ -42,6 +42,8 @@ export const AddClientModal: React.FC<AddClientModalProps> = ({
 
   // Case details
   const [caseTitle, setCaseTitle] = useState('');
+  const [party1, setParty1] = useState('');
+  const [party2, setParty2] = useState('');
   const [caseNature, setCaseNature] = useState<CaseNature>('CRIMINAL');
   const [caseNo, setCaseNo] = useState('');
   const [courtName, setCourtName] = useState('Court of District & Sessions Judge, Ballia');
@@ -52,6 +54,31 @@ export const AddClientModal: React.FC<AddClientModalProps> = ({
   const [feesReceived, setFeesReceived] = useState<number>(5000);
   const [status, setStatus] = useState<'Open' | 'Closed'>('Open');
   const [notes, setNotes] = useState('');
+
+  // Helper to dynamically build case title from party1 and party2
+  const updateCombinedCaseTitle = (p1: string, p2: string) => {
+    const p1Trim = p1.trim();
+    const p2Trim = p2.trim();
+    if (p1Trim && p2Trim) {
+      setCaseTitle(`${p1Trim} Vs ${p2Trim}`);
+    } else if (p1Trim) {
+      setCaseTitle(p1Trim);
+    } else if (p2Trim) {
+      setCaseTitle(`Vs ${p2Trim}`);
+    } else {
+      setCaseTitle('');
+    }
+  };
+
+  const handleParty1Change = (val: string) => {
+    setParty1(val);
+    updateCombinedCaseTitle(val, party2);
+  };
+
+  const handleParty2Change = (val: string) => {
+    setParty2(val);
+    updateCombinedCaseTitle(party1, val);
+  };
 
   // Dropdown states for Court, Stage, Tahsil & PS
   const [availableCourts, setAvailableCourts] = useState<CourtMaster[]>([]);
@@ -103,7 +130,21 @@ export const AddClientModal: React.FC<AddClientModalProps> = ({
       setDistrict(initialClient.address.district);
       setState(initialClient.address.state);
       setPincode(initialClient.address.pincode);
-      setCaseTitle(initialClient.caseTitle || initialClient.caseNameVsName || '');
+      const rawTitle = initialClient.caseTitle || initialClient.caseNameVsName || '';
+      setCaseTitle(rawTitle);
+      if (rawTitle) {
+        const parts = rawTitle.split(/\s+(?:vs\.?|v\/s|banaam|बनाम)\s+/i);
+        if (parts.length >= 2) {
+          setParty1(parts[0].trim());
+          setParty2(parts.slice(1).join(' Vs ').trim());
+        } else {
+          setParty1(rawTitle.trim());
+          setParty2('');
+        }
+      } else {
+        setParty1('');
+        setParty2('');
+      }
       setCaseNature(initialClient.caseNature);
       setCaseNo(initialClient.caseNo);
 
@@ -170,6 +211,8 @@ export const AddClientModal: React.FC<AddClientModalProps> = ({
       setState('Uttar Pradesh');
       setPincode('277001');
       setCaseTitle('');
+      setParty1('');
+      setParty2('');
       setCaseNature('CRIMINAL');
       setCaseNo('');
 
@@ -543,21 +586,52 @@ export const AddClientModal: React.FC<AddClientModalProps> = ({
             </h4>
 
             {/* 3 Columns for A. Case Name vs Name | B. Case Number | C. Case Nature */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  A. Case Name vs Name (रमेश बनाम सुरेश)
-                </label>
-                <input
-                  type="text"
-                  value={caseTitle}
-                  onChange={(e) => setCaseTitle(e.target.value)}
-                  placeholder="e.g. Ramesh vs Suresh / State vs Ajay"
-                  className="w-full bg-slate-800 border border-slate-700 focus:border-amber-500 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none"
-                />
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-4 mb-4">
+              {/* A. Case Name vs Name */}
+              <div className="col-span-12 md:col-span-6">
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-semibold text-slate-300">
+                    A. Case Name vs Name (रमेश बनाम सुरेश)
+                  </label>
+                  {(party1 || party2) && (
+                    <span className="text-[10px] font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20 truncate max-w-[200px]">
+                      {party1 || '???'} Vs {party2 || '???'}
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-1.5 sm:gap-2 bg-slate-800 border border-slate-700 focus-within:border-amber-500 rounded-xl p-1.5 transition-all shadow-inner">
+                  {/* Party 1 / Petitioner / Applicant Input */}
+                  <div className="flex-1 min-w-0">
+                    <input
+                      type="text"
+                      value={party1}
+                      onChange={(e) => handleParty1Change(e.target.value)}
+                      placeholder="प्रथम पक्ष (e.g. Ramesh / State)"
+                      className="w-full bg-slate-900 border border-slate-700/80 focus:border-amber-500 rounded-lg px-2.5 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none transition-colors"
+                    />
+                  </div>
+
+                  {/* Fixed Pre-Defined Center 'Vs' Badge */}
+                  <div className="flex items-center justify-center shrink-0 px-2.5 py-1 bg-amber-500/20 text-amber-400 font-extrabold text-xs rounded-lg border border-amber-500/40 shadow-sm select-none">
+                    <span className="tracking-wider uppercase">Vs</span>
+                  </div>
+
+                  {/* Party 2 / Respondent / Defendant Input */}
+                  <div className="flex-1 min-w-0">
+                    <input
+                      type="text"
+                      value={party2}
+                      onChange={(e) => handleParty2Change(e.target.value)}
+                      placeholder="द्वितीय पक्ष (e.g. Suresh / Ajay)"
+                      className="w-full bg-slate-900 border border-slate-700/80 focus:border-amber-500 rounded-lg px-2.5 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none transition-colors"
+                    />
+                  </div>
+                </div>
               </div>
 
-              <div>
+              {/* B. Case Number */}
+              <div className="col-span-12 sm:col-span-6 md:col-span-3">
                 <label className="block text-xs font-semibold text-slate-300 mb-1">
                   B. Case Number (वाद संख्या) *
                 </label>
@@ -571,7 +645,8 @@ export const AddClientModal: React.FC<AddClientModalProps> = ({
                 />
               </div>
 
-              <div>
+              {/* C. Case Nature */}
+              <div className="col-span-12 sm:col-span-6 md:col-span-3">
                 <label className="block text-xs font-semibold text-slate-300 mb-1">
                   C. Case Nature (वाद प्रकृति) *
                 </label>

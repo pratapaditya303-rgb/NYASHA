@@ -46,6 +46,7 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [notifTab, setNotifTab] = useState<'announcements' | 'hearings'>('announcements');
   const [isIconModalOpen, setIsIconModalOpen] = useState(false);
   const [, setIconVersion] = useState(0);
 
@@ -55,8 +56,14 @@ export const Header: React.FC<HeaderProps> = ({
     return () => window.removeEventListener('app_icon_changed', handleIconChange);
   }, []);
 
-  const notifications = db.getNotifications();
-  const unreadCount = notifications.filter(n => !n.isRead).length;
+  const barAnnouncements = db.getBarAnnouncements();
+  const personalHearingAlerts = currentUser
+    ? db.getPersonalHearingAlerts(currentUser.id, currentUser.barNo)
+    : [];
+
+  const unreadAnnouncements = barAnnouncements.filter((n) => !n.isRead).length;
+  const unreadHearings = personalHearingAlerts.filter((n) => !n.isRead).length;
+  const unreadCount = unreadAnnouncements + unreadHearings;
 
   const navLinks = [
     { label: 'Home', route: 'home' },
@@ -236,33 +243,100 @@ export const Header: React.FC<HeaderProps> = ({
               {/* Notification Dropdown */}
               {showNotifications && (
                 <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-2xl bg-slate-900 border border-slate-700 shadow-2xl p-4 text-slate-100 z-50">
-                  <div className="flex items-center justify-between pb-2 mb-3 border-b border-slate-800">
-                    <h4 className="font-bold text-xs text-amber-300 uppercase tracking-wider flex items-center gap-1.5">
-                      <Bell className="w-3.5 h-3.5" /> Bar Announcements &amp; Hearings
-                    </h4>
-                    <span className="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full">
-                      {notifications.length} Total
-                    </span>
-                  </div>
+                  {/* Tab Selector Header */}
+                  <div className="flex items-center gap-1.5 p-1 bg-slate-950/80 rounded-xl border border-slate-800 mb-3 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => setNotifTab('announcements')}
+                      className={`flex-1 py-1.5 px-2 rounded-lg font-bold text-[11px] transition-all flex items-center justify-center gap-1.5 ${
+                        notifTab === 'announcements'
+                          ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm'
+                          : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      <span>📢 Bar Notices</span>
+                      {unreadAnnouncements > 0 && (
+                        <span className="px-1.5 py-0.2 bg-amber-500 text-slate-950 text-[9px] font-black rounded-full">
+                          {unreadAnnouncements}
+                        </span>
+                      )}
+                    </button>
 
-                  <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
-                    {notifications.map((n) => (
-                      <div
-                        key={n.id}
-                        onClick={() => db.markNotificationAsRead(n.id)}
-                        className={`p-2.5 rounded-xl border transition-colors cursor-pointer text-xs ${
-                          n.isRead
-                            ? 'bg-slate-950/40 border-slate-800 text-slate-400'
-                            : 'bg-slate-800/80 border-amber-500/30 text-slate-200'
+                    {currentUser && (
+                      <button
+                        type="button"
+                        onClick={() => setNotifTab('hearings')}
+                        className={`flex-1 py-1.5 px-2 rounded-lg font-bold text-[11px] transition-all flex items-center justify-center gap-1.5 ${
+                          notifTab === 'hearings'
+                            ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40 shadow-sm'
+                            : 'text-slate-400 hover:text-slate-200'
                         }`}
                       >
-                        <div className="flex items-start justify-between gap-2">
-                          <p className="font-semibold text-slate-100">{n.title}</p>
-                          <span className="text-[9px] text-slate-500 whitespace-nowrap">{n.createdAt.split(' ')[0]}</span>
+                        <span>🔒 My Hearing Alerts</span>
+                        {unreadHearings > 0 && (
+                          <span className="px-1.5 py-0.2 bg-blue-500 text-white text-[9px] font-black rounded-full">
+                            {unreadHearings}
+                          </span>
+                        )}
+                      </button>
+                    )}
+                  </div>
+
+                  {/* List Container */}
+                  <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
+                    {notifTab === 'announcements' ? (
+                      barAnnouncements.length === 0 ? (
+                        <p className="text-center py-6 text-xs text-slate-500">
+                          कोई सार्वजनिक बार घोषणा उपलब्ध नहीं है। (No Bar Announcements)
+                        </p>
+                      ) : (
+                        barAnnouncements.map((n) => (
+                          <div
+                            key={n.id}
+                            onClick={() => db.markNotificationAsRead(n.id)}
+                            className={`p-2.5 rounded-xl border transition-colors cursor-pointer text-xs ${
+                              n.isRead
+                                ? 'bg-slate-950/40 border-slate-800 text-slate-400'
+                                : 'bg-slate-800/80 border-amber-500/30 text-slate-200'
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <p className="font-semibold text-slate-100">{n.title}</p>
+                              <span className="text-[9px] text-slate-500 whitespace-nowrap">
+                                {n.createdAt.split(' ')[0]}
+                              </span>
+                            </div>
+                            <p className="mt-1 text-[11px] leading-relaxed text-slate-300">{n.message}</p>
+                          </div>
+                        ))
+                      )
+                    ) : personalHearingAlerts.length === 0 ? (
+                      <p className="text-center py-6 text-xs text-slate-500">
+                        आपके पास कोई व्यक्तिगत मुकदमा सुनवाई का अलर्ट नहीं है। (No Private Hearing Alerts)
+                      </p>
+                    ) : (
+                      personalHearingAlerts.map((n) => (
+                        <div
+                          key={n.id}
+                          onClick={() => db.markNotificationAsRead(n.id)}
+                          className={`p-2.5 rounded-xl border transition-colors cursor-pointer text-xs ${
+                            n.isRead
+                              ? 'bg-slate-950/40 border-slate-800 text-slate-400'
+                              : 'bg-blue-950/40 border-blue-500/40 text-blue-100'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="font-semibold text-blue-200 flex items-center gap-1">
+                              <span>🔒</span> {n.title}
+                            </p>
+                            <span className="text-[9px] text-slate-500 whitespace-nowrap">
+                              {n.createdAt.split(' ')[0]}
+                            </span>
+                          </div>
+                          <p className="mt-1 text-[11px] leading-relaxed text-slate-300">{n.message}</p>
                         </div>
-                        <p className="mt-1 text-[11px] leading-relaxed text-slate-300">{n.message}</p>
-                      </div>
-                    ))}
+                      ))
+                    )}
                   </div>
                 </div>
               )}

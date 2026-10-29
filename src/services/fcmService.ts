@@ -46,6 +46,49 @@ export async function requestNotificationPermissionAndGetToken(): Promise<string
   return null;
 }
 
+export async function sendLocalPushNotification(
+  title: string,
+  body: string,
+  tag?: string,
+  icon: string = '/icon.svg'
+) {
+  if (typeof window === 'undefined' || !('Notification' in window)) {
+    return;
+  }
+
+  if (Notification.permission === 'granted') {
+    if ('serviceWorker' in navigator) {
+      try {
+        const reg = await navigator.serviceWorker.ready;
+        if (reg && reg.showNotification) {
+          await reg.showNotification(title, {
+            body,
+            icon,
+            badge: icon,
+            vibrate: [200, 100, 200, 100, 200],
+            tag: tag || 'nyaay-alert-' + Date.now(),
+            data: { url: window.location.origin }
+          });
+          return;
+        }
+      } catch (e) {
+        console.warn('SW showNotification failed, falling back to Notification API', e);
+      }
+    }
+
+    // Fallback to standard Notification API
+    try {
+      new Notification(title, {
+        body,
+        icon,
+        tag: tag || 'nyaay-alert-' + Date.now()
+      });
+    } catch (e) {
+      console.warn('Native notification failed', e);
+    }
+  }
+}
+
 export async function listenToForegroundPushMessages(callback: (payload: any) => void) {
   try {
     const messaging = await getFcmMessaging();

@@ -23,7 +23,17 @@ export default defineConfig(() => {
     build: {
       sourcemap: false,
       minify: 'esbuild' as const,
-      cssMinify: true
+      cssMinify: true,
+      chunkSizeWarningLimit: 4000,
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            vendor: ['react', 'react-dom'],
+            icons: ['lucide-react'],
+            firebase: ['firebase/app', 'firebase/firestore', 'firebase/auth']
+          }
+        }
+      }
     },
     esbuild: {
       legalComments: 'none' as const,

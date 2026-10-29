@@ -32,6 +32,8 @@ import { db } from '../lib/store';
 import { AddClientModal } from '../components/AddClientModal';
 import { RazorpayModal } from '../components/RazorpayModal';
 import { AdvocateIDCardModal } from '../components/AdvocateIDCardModal';
+import { checkAndTriggerHearingAlerts } from '../services/hearingScheduler';
+import { requestNotificationPermissionAndGetToken, sendLocalPushNotification } from '../services/fcmService';
 import {
   generateAdvocateIDCardPDF,
   generateAdvocateSlipPDF,
@@ -86,14 +88,23 @@ export const AdvocateDashboardView: React.FC<AdvocateDashboardViewProps> = ({
   React.useEffect(() => {
     const handleSync = () => {
       refreshData();
+      checkAndTriggerHearingAlerts(advocate);
     };
+    
+    // Initial check on load
+    checkAndTriggerHearingAlerts(advocate);
+
     window.addEventListener('crba_state_updated', handleSync);
-    const interval = setInterval(refreshData, 2000);
+    const interval = setInterval(() => {
+      refreshData();
+      checkAndTriggerHearingAlerts(advocate);
+    }, 5000);
+
     return () => {
       window.removeEventListener('crba_state_updated', handleSync);
       clearInterval(interval);
     };
-  }, [advocate.barNo, advocate.id]);
+  }, [advocate]);
 
   // Stats
   const totalClients = clients.length;
@@ -134,11 +145,13 @@ export const AdvocateDashboardView: React.FC<AdvocateDashboardViewProps> = ({
   };
 
   const handleSendHearingAlert = (client: Client) => {
-    // Add Notification to store
+    // Add Notification to store (Targeted strictly to this advocate only)
     db.addNotification({
       id: 'notif_' + Date.now(),
       title: `Upcoming Hearing Alert: ${client.caseNo}`,
       message: `Case for ${client.clientName} is listed before ${client.courtName} on ${client.nextHearingDate}. (Stage: ${client.caseStage})`,
+      targetAudience: 'Selected',
+      recipientIds: [advocate.id, advocate.barNo],
       targetRole: 'advocate',
       isRead: false,
       createdAt: new Date().toLocaleDateString('en-GB')
@@ -256,6 +269,79 @@ export const AdvocateDashboardView: React.FC<AdvocateDashboardViewProps> = ({
           <span>{hearingAlertSent}</span>
         </div>
       )}
+
+      {/* MOBILE / SYSTEM PUSH NOTIFICATION ENABLER BANNER */}
+      <div className="rounded-2xl bg-gradient-to-r from-slate-900 via-amber-950/30 to-slate-900 border border-amber-500/30 p-4 shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center shrink-0">
+            <Bell className="w-5 h-5 animate-bounce" />
+          </div>
+          <div>
+            <h5 className="font-bold text-amber-300 text-xs flex items-center gap-2">
+              <span>📱 Automatic Mobile Case Hearing Push Notifications</span>
+              <span className="text-[10px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-full border border-amber-500/30 font-black">
+                6 PM &amp; 6 AM
+              </span>
+            </h5>
+            <p className="text-[11px] text-slate-300 mt-0.5">
+              सुनवाई से 1 दिन पहले शाम 6:00 PM और उसी दिन सुबह 6:00 AM मोबाइल लॉक स्क्रीन पर व्हाट्सएप जैसा पुश अलर्ट पाएं।
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
+          <button
+            type="button"
+            onClick={async () => {
+              const token = await requestNotificationPermissionAndGetToken();
+              if (token || (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted')) {
+                sendLocalPushNotification(
+                  '🔔 पुश नोटिफिकेशन सक्रिय है!',
+                  'न्याय सहयोगी: आपके मोबाइल पर शाम 6:00 PM और सुबह 6:00 AM केस सुनवाई का पुश अलर्ट सक्रिय हो गया है।'
+                );
+                setHearingAlertSent('✓ Mobile Push Notification enabled and test alert sent successfully!');
+                setTimeout(() => setHearingAlertSent(null), 4000);
+              } else {
+                alert('Please allow notification permissions in your browser/mobile settings.');
+              }
+            }}
+            className="flex-1 sm:flex-none px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition-all shadow-md flex items-center justify-center gap-1.5"
+          >
+            <Bell className="w-3.5 h-3.5" />
+            <span>Enable Mobile Push &amp; Test</span>
+          </button>
+        </div>
+      </div>
+
+      {/* PRIVATE HEARING ALERTS CARD (FOR THIS ADVOCATE ONLY) */}
+      {(() => {
+        const myAlerts = db.getPersonalHearingAlerts(advocate.id, advocate.barNo);
+        if (myAlerts.length === 0) return null;
+        return (
+          <div className="rounded-2xl bg-blue-950/40 border border-blue-500/30 p-5 text-slate-100 shadow-xl">
+            <div className="flex items-center justify-between pb-3 border-b border-blue-500/20 mb-3">
+              <h4 className="font-bold text-xs text-blue-300 uppercase tracking-wider flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-blue-400 animate-pulse" />
+                🔒 My Private Case Hearing Alerts (केवल आपकी व्यक्तिगत मुकदमा सुनवाई अलर्ट)
+              </h4>
+              <span className="text-[10px] bg-blue-900/80 text-blue-200 px-2.5 py-0.5 rounded-full font-bold">
+                {myAlerts.length} Active
+              </span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {myAlerts.map((alert) => (
+                <div key={alert.id} className="p-3 bg-slate-900/90 rounded-xl border border-blue-500/20 text-xs">
+                  <div className="flex items-center justify-between text-blue-200 font-bold">
+                    <span>{alert.title}</span>
+                    <span className="text-[9px] text-slate-400">{alert.createdAt}</span>
+                  </div>
+                  <p className="text-slate-300 text-[11px] mt-1.5 leading-relaxed">{alert.message}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* A(1) vs A(2): INDIVIDUAL ADVOCATE PRO PLAN BANNER (Dynamic Pricing from Super Admin) */}
       {(() => {

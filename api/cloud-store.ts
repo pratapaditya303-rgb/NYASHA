@@ -1,4 +1,20 @@
-import firebaseConfig from '../firebase-applet-config.json';
+let firebaseConfig: any = {
+  apiKey: "AIzaSyCF6iHdbCygnQDxzhrQWhEqd9kDx2DQtjQ",
+  projectId: "gen-lang-client-0118328707",
+  firestoreDatabaseId: "ai-studio-barassociationba-b253281c-6ea1-4dcf-81b2-fa0bab8786df"
+};
+
+try {
+  // Safe runtime reading for Node.js Vercel Serverless Function without ERR_IMPORT_ATTRIBUTE_MISSING
+  const fs = require('fs');
+  const path = require('path');
+  const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
+  if (fs.existsSync(configPath)) {
+    firebaseConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+  }
+} catch {
+  // fallback to inline defaults
+}
 
 const FIRESTORE_API_KEY = firebaseConfig.apiKey || 'AIzaSyCF6iHdbCygnQDxzhrQWhEqd9kDx2DQtjQ';
 const FIRESTORE_PROJECT = firebaseConfig.projectId || 'gen-lang-client-0118328707';

@@ -45,6 +45,7 @@ import {
   generateCryptoLicenseKey
 } from './modulesConfig';
 import { securityShield } from '../utils/securityShield';
+import { sendLocalPushNotification } from '../services/fcmService';
 import { doc, onSnapshot, setDoc, getDocFromServer } from 'firebase/firestore';
 import { firestoreDb, auth } from './firebase';
 import firebaseConfig from '../../firebase-applet-config.json';
@@ -2925,6 +2926,46 @@ class LocalStore {
           if (Array.isArray(v)) {
             finalVal = v;
             shouldUpdate = JSON.stringify(finalVal) !== JSON.stringify(currentVal);
+
+            // Cross-Device Realtime Push Notification Trigger for newly arrived items from Cloud Firestore
+            if (k === STORAGE_KEYS.NOTIFICATIONS && shouldUpdate && Array.isArray(currentVal)) {
+              try {
+                const currentIds = new Set(currentVal.map((item: any) => item?.id));
+                const newItems = v.filter((n: any) => n && n.id && !currentIds.has(n.id));
+
+                if (newItems.length > 0) {
+                  const currentUser = this.getCurrentUser();
+                  let shownPushIds: string[] = [];
+                  try {
+                    shownPushIds = JSON.parse(localStorage.getItem('_nyaay_shown_push_ids') || '[]');
+                  } catch {}
+                  const shownSet = new Set(shownPushIds);
+
+                  newItems.forEach((n: any) => {
+                    const isForMe =
+                      n.targetAudience === 'All' ||
+                      !n.recipientIds ||
+                      n.recipientIds.length === 0 ||
+                      (currentUser &&
+                        n.recipientIds &&
+                        (n.recipientIds.includes(currentUser.id) ||
+                          (currentUser.barNo && n.recipientIds.includes(currentUser.barNo))));
+
+                    if (isForMe && !shownSet.has(n.id)) {
+                      shownSet.add(n.id);
+                      shownPushIds.push(n.id);
+
+                      // Trigger Native Mobile / System Web Push Notification on THIS device!
+                      sendLocalPushNotification(n.title, n.message, n.id);
+                    }
+                  });
+
+                  localStorage.setItem('_nyaay_shown_push_ids', JSON.stringify(shownPushIds.slice(-200)));
+                }
+              } catch (e) {
+                console.warn('Cross-device push alert error:', e);
+              }
+            }
           }
         } else if (Array.isArray(currentVal) && Array.isArray(v)) {
           // Smart merge for Advocates & other collections
@@ -4332,11 +4373,37 @@ PRAYER: Restrain defendants from altering nature of suit land or dispossessing p
     return this.get<NotificationItem[]>(STORAGE_KEYS.NOTIFICATIONS, DEFAULT_NOTIFICATIONS);
   }
 
+  /**
+   * General Bar Announcements (सार्वजनिक बार घोषणाएं)
+   * Only returns broadcast notices meant for all advocates/members.
+   * Case hearing notifications for specific advocates are excluded here.
+   */
+  public getBarAnnouncements(): NotificationItem[] {
+    return this.getNotifications().filter(
+      n => n.targetAudience === 'All' || !n.recipientIds || n.recipientIds.length === 0
+    );
+  }
+
+  /**
+   * Personal Hearing & Case Alerts (व्यक्तिगत मुकदमा सुनवाई अलर्ट)
+   * Strictly filtered for the specific advocate logged in.
+   */
+  public getPersonalHearingAlerts(advocateId: string, barNo?: string): NotificationItem[] {
+    if (!advocateId) return [];
+    return this.getNotifications().filter(
+      n =>
+        n.targetAudience === 'Selected' &&
+        n.recipientIds &&
+        (n.recipientIds.includes(advocateId) || (barNo && n.recipientIds.includes(barNo)))
+    );
+  }
+
   public addNotification(notification: NotificationItem): void {
     const list = this.getNotifications();
     list.unshift(notification);
     this.set(STORAGE_KEYS.NOTIFICATIONS, list);
     this.syncWithServer(true).catch(() => {});
+    this.pushToFirestoreCloud().catch(() => {});
     window.dispatchEvent(new CustomEvent('crba_state_updated', { detail: { key: '_sys_vault_v2_notifications' } }));
   }
 
